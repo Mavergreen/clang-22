@@ -60,3 +60,12 @@ mav_pin_builtins_min_ver() {  # $1 builtin-config-ix.cmake, $2 version
   sed "s/^  set(DARWIN_osx_BUILTIN_MIN_VER 10\\.7)\$/  set(DARWIN_osx_BUILTIN_MIN_VER $2)/" "$1" > "$1.tmp" \
     && mv "$1.tmp" "$1"
 }
+
+# The symbols a dylib relinked from ARCHIVE should export: every symbol `nm -gUm` reports defined and
+# external (weak ones included), LC_ALL=C sort -u. A `private external` symbol is hidden, and asking
+# the linker to export a hidden symbol is an error, so those are left out. Fails if nm does, rather
+# than printing a short list a link would then quietly honour.
+mav_export_list() {  # $1 archive
+  _mel="$("${NM:-nm}" -gUm "$1")" || { echo "mav_export_list: ${NM:-nm} -gUm failed on $1" >&2; return 1; }
+  printf '%s\n' "$_mel" | awk '/ external / && !/ private external / {print $NF}' | LC_ALL=C sort -u
+}

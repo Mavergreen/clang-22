@@ -12,12 +12,13 @@
 #
 #   allowed: @rpath/@loader_path/@executable_path (relative by construction)
 #            /usr/lib/**, /System/**             (present on every macOS)
-#            $NATIVE_PREFIX/**, $CROSS_PREFIX/** (our own install locations -- the pkgs put us there)
+#            $NATIVE_PREFIX/**, $CROSS_PREFIX/**, $LIBCXX_PREFIX/**
+#                                                (our own install locations -- the pkgs put us there)
 #   flagged: every other absolute path
 #
-# BOTH prefixes are allowed regardless of which variant is being audited. The alternative -- passing
+# ALL THREE prefixes are allowed whichever product is audited. The alternative -- passing
 # in the one prefix that applies -- buys nothing (a native binary cannot legitimately reference the
-# cross prefix anyway, and the two are distinct paths) and costs a whole class of silent failure: a
+# cross prefix anyway, and the prefixes are distinct paths) and costs a class of silent failure: a
 # caller that forgets to set it leaves the pattern empty, "" /* matches every absolute path, and the
 # gate passes everything while appearing to run.
 #
@@ -48,15 +49,15 @@ while IFS= read -r f; do
   esac
   n=$((n+1))
   paths="$(printf '%s\n%s\n%s\n' \
-    "$(otool -L "$f" 2>/dev/null | tail -n +2 | awk '{print $1}')" \
-    "$(otool -D "$f" 2>/dev/null | tail -n +2)" \
-    "$(otool -l "$f" 2>/dev/null | awk '/LC_RPATH/{r=1} r&&/ path /{print $2; r=0}')")"
+    "$("${OTOOL:-otool}" -L "$f" 2>/dev/null | tail -n +2 | awk '{print $1}')" \
+    "$("${OTOOL:-otool}" -D "$f" 2>/dev/null | tail -n +2)" \
+    "$("${OTOOL:-otool}" -l "$f" 2>/dev/null | awk '/LC_RPATH/{r=1} r&&/ path /{print $2; r=0}')")"
   hits=""
   for p in $paths; do
     case "$p" in
       @*|"") continue ;;                       # @rpath &c -- relative by construction
       /usr/lib/*|/System/*) continue ;;        # on every macOS
-      "$NATIVE_PREFIX"/*|"$CROSS_PREFIX"/*) continue ;;   # where the pkgs actually install us
+      "$NATIVE_PREFIX"/*|"$CROSS_PREFIX"/*|"$LIBCXX_PREFIX"/*) continue ;;   # where the pkgs actually install us
       /*) hits="$hits$p
 " ;;
     esac
