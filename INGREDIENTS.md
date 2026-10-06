@@ -9,7 +9,7 @@ to port. An own-upstream bump cuts `<upstream>-mavericks.1`; an ingredient bump 
 | Ingredient | Pinned in | Renovate | On a bump |
 |---|---|---|---|
 | LLVM/Clang source (own upstream) | `UPSTREAM_VERSION` (repo root) | ✅ customManager → `github-tags` on `llvm/llvm-project`, capped to this repo's line | `release.yml` on push to main cuts `-mavericks.1` |
-| macports-legacy-support shim (prebuilt) | `MLS_VERSION # mavericks-legacysupport` in `build/versions.sh` | ✅ shared preset's `# mavericks-legacysupport` customManager | `build/versions.sh` is a watched path → repackage dispatched |
+| Recaulk (prebuilt librecaulk.a + headers) | `components/recaulk/version` | ✅ shipyard preset manager → github-releases on Mavergreen/recaulk | watched path → repackage dispatched |
 | LLVM release-signing keys | `keys/llvm-release.asc` | ❌ **untrackable — manual refresh** (see below) | not a watched path; a stale bundle fails the build loudly, never silently |
 | MacOSX10.9 SDK | `Mavergreen/shipyard@v1` (`fetch_sdk.sh`) | ✅ github-actions manager tracks the tag | `@v1` is a *moving* tag, so content moves without any path here changing |
 | Sparkle framework (embedded in the updater `.app`) | `Mavergreen/shipyard@v1` (`mavericks_fetch_sparkle`; Sparkle 1.x — the last line that runs on 10.9) | ✅ via `@v1` (github-actions manager) | content moves with `@v1` |
@@ -20,8 +20,10 @@ repackage you cut deliberately (`workflow_dispatch` with `local_release=true`), 
 drives.
 
 Shipped shim (`build/shim/` → `include/mavericks-compat/` in the toolchain): hand-authored back-fill
-headers (`aligned_alloc`, `mbstate_t`) for the handful of 10.9-missing symbols the newer libc++ needs
-that the macports-legacy-support shim does not carry. It is our own source, not an external input, so
+header `pthread/qos.h`, which adds the `qos_class_self`/`qos_class_main` that Recaulk's own
+`pthread/qos.h` does not declare (LLVM's `Threading.inc` includes it; so may user code). Its sibling
+`build/shim/aligned_alloc.h` is force-included into the runtimes build only and is not shipped. The
+shim is our own source, not an external input, so
 there is nothing for Renovate to pin or track — but unlike `build/*.sh` it is **baked into the
 artifact** (`clang.cfg` references it via `-isystem`), so it is recorded here for anyone auditing what
 the shipped toolchain contains. A change to it is a deliberate repackage, like a patch.
@@ -66,7 +68,7 @@ can hold both, and `mavergreen select clang` picks which one owns the bare names
 
 Both target `x86_64-apple-macos10.9`, and both are built on the modern arm64 runner in one run — the
 native variant is cross-*hosted* using the cross variant as its compiler, so nothing x86_64 is ever
-executed during the build. Their `build-info-*.txt` records must agree on `llvm` and `legacy_support`
+executed during the build. Their `build-info-*.txt` records must agree on `llvm` and `recaulk`
 (conformance compares any key appearing in more than one variant); `variant`, `arch`, `prefix`, `pkg`
 and `identifier` are the keys that are supposed to differ.
 

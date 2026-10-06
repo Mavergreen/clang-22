@@ -18,14 +18,14 @@ SRC="$WORK/llvm-project-$LLVM_VERSION.src"
 BLD="$WORK/llvm-build"
 mkdir -p "$WORK"
 
-echo "==> 1. pinned SDKs (10.9 for the target, 11.3 for the arm64 host) + legacy-support shim"
+echo "==> 1. pinned SDKs (10.9 for the target, 11.3 for the arm64 host) + Recaulk"
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"; export SDK
 [ -d "$SDK" ] || { echo "FATAL: 10.9 SDK not found: '$SDK'" >&2; exit 1; }
 HOST_SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh" --arch arm64)"
 [ -d "$HOST_SDK" ] || { echo "FATAL: arm64 host SDK not found: '$HOST_SDK'" >&2; exit 1; }
-LEGACY_A="$(sh "$HERE/fetch-legacy-support.sh" | tail -1)"
-LEGACY_INC="$(dirname "$(dirname "$LEGACY_A")")/include"
-[ -f "$LEGACY_A" ] || { echo "FATAL: legacy-support .a missing" >&2; exit 1; }
+RECAULK_A="$(sh "$HERE/fetch-recaulk.sh" | tail -1)"
+RECAULK_INC="$(dirname "$(dirname "$RECAULK_A")")/include"
+[ -f "$RECAULK_A" ] || { echo "FATAL: librecaulk.a missing" >&2; exit 1; }
 
 echo "==> 2. fetch + GPG-verify LLVM source"
 # The signature -- not a pinned hash -- is what makes a Renovate bump of UPSTREAM_VERSION
@@ -60,7 +60,7 @@ RUNTIME_TARGET="x86_64-apple-darwin"
 #
 # compiler-rt is BUILTINS ONLY, which takes eight explicit OFFs rather than the four obvious ones.
 # Everything else in compiler-rt pulls in sanitizer_common, which needs os/log.h (10.12+) that neither
-# the 10.9 SDK nor the legacy-support shim has -- the shim carries os/lock.h, not os/log.h. Turning
+# the 10.9 SDK nor Recaulk has -- Recaulk carries os/lock.h, not os/log.h. Turning
 # off SANITIZERS alone leaves CTX_PROFILE and GWP_ASAN at their default ON, and the build still dies
 # in sanitizer_mac.cpp with a missing header that looks nothing like "you forgot a switch".
 #
@@ -85,10 +85,10 @@ RUNTIME_TARGET="x86_64-apple-darwin"
 # for the same class of reason (llvm-mt is not part of this product).
 #
 # -isystem the directory that DIRECTLY CONTAINS the wrapper headers, not its parent. This is the
-# whole mechanism: macports-legacy-support ships shadow headers (time.h, stdlib.h, dirent.h, ...) that
+# whole mechanism: Recaulk ships shadow headers (time.h, stdlib.h, dirent.h, ...) that
 # #include_next the SDK header and add the newer-than-10.9 declarations, so they only work when they
 # shadow the real header name. Pointed at the parent (.../include) they are merely reachable as
-# <LegacySupport/time.h>, which nothing includes -- and libc++ then fails to compile with
+# <recaulk/time.h>, which nothing includes -- and libc++ then fails to compile with
 # "use of undeclared identifier 'CLOCK_REALTIME'" / 'CLOCK_MONOTONIC_RAW', because on Apple its
 # steady_clock calls clock_gettime unconditionally. Same wiring native-bootstrap/build.sh proved.
 #
@@ -124,7 +124,7 @@ RUNTIME_TARGET="x86_64-apple-darwin"
 # The minimum is not a setting at all. compiler-rt clears CMAKE_OSX_DEPLOYMENT_TARGET for the builtins
 # and hardcodes DARWIN_osx_BUILTIN_MIN_VER 10.7, so step 2 rewrites that one line of the unpacked
 # source (mav_pin_builtins_min_ver in build/lib.sh).
-RC="-isystem $HERE/shim/include -isystem $LEGACY_INC/LegacySupport -include $HERE/shim/aligned_alloc.h -fno-jump-tables"
+RC="-isystem $HERE/shim/include -isystem $RECAULK_INC/recaulk -include $HERE/shim/aligned_alloc.h -fno-jump-tables"
 rm -rf "$BLD"
 shipyard-cmake -G Ninja -S "$SRC/llvm" -B "$BLD" \
   $(mav_ccache_args) \
@@ -153,8 +153,8 @@ shipyard-cmake -G Ninja -S "$SRC/llvm" -B "$BLD" \
   "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_OSX_ARCHITECTURES=x86_64" \
   "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_C_FLAGS=$RC" \
   "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_CXX_FLAGS=$RC" \
-  "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_EXE_LINKER_FLAGS=$LEGACY_A" \
-  "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_SHARED_LINKER_FLAGS=$LEGACY_A" \
+  "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_EXE_LINKER_FLAGS=$RECAULK_A" \
+  "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_SHARED_LINKER_FLAGS=$RECAULK_A" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_IOS=OFF" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_WATCHOS=OFF" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_TVOS=OFF" \
@@ -173,13 +173,15 @@ echo "==> 4. build + install into staging"
 ninja -C "$BLD" -j "$JOBS"
 rm -rf "$WORK/stage"; DESTDIR="$WORK/stage" ninja -C "$BLD" install
 
-echo "==> 5. assemble: legacy-support + clang.cfg (default target = x86_64 Mavericks)"
+echo "==> 5. assemble: Recaulk + clang.cfg (default target = x86_64 Mavericks)"
 install -d "$STAGE/lib" "$STAGE/include" "$STAGE/libexec" "$STAGE/SDKs"
-cp "$LEGACY_A" "$STAGE/lib/"
-rm -rf "$STAGE/include/LegacySupport"; cp -R "$LEGACY_INC/LegacySupport" "$STAGE/include/"
-# Our own tracked back-fills, kept OUT of the vendored LegacySupport/ tree so that stays a verbatim
-# copy of upstream. Shipped because the defect they patch is in the 10.9 SDK, so it hits USER
-# compiles too, not just the runtimes build (see build/shim/include/sys/_types/_mbstate_t.h).
+cp "$RECAULK_A" "$STAGE/lib/"
+rm -rf "$STAGE/include/recaulk"; cp -R "$RECAULK_INC/recaulk" "$STAGE/include/"
+# Our own tracked back-fill overlay (today only pthread/qos.h), kept OUT of the vendored recaulk/
+# tree so that stays a verbatim copy of upstream. Shipped, not runtimes-build-only, because USER code
+# includes <pthread/qos.h> too: QoS is a 10.10 feature the 10.9 SDK lacks (not an SDK defect), and
+# Recaulk's copy of the header declares no qos_class_self/qos_class_main, which this overlay adds
+# (see build/shim/include/pthread/qos.h).
 rm -rf "$STAGE/include/mavericks-compat"; cp -R "$HERE/shim/include" "$STAGE/include/mavericks-compat"
 
 # Where LLVM actually put the x86_64/10.9 C++ runtime. DISCOVERED, not assumed: LLVM lays per-target
@@ -234,10 +236,10 @@ printf '%s\n' \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
   "-mmacosx-version-min=$MACOS_MIN" \
   '-isystem <CFGDIR>/../include/mavericks-compat' \
-  '-isystem <CFGDIR>/../include/LegacySupport' \
+  '-isystem <CFGDIR>/../include/recaulk' \
   '-Wl,-dead_strip_dylibs' \
   '-Wl,-U,__availability_version_check' \
-  '<CFGDIR>/../lib/libMacportsLegacySupport.a' \
+  '<CFGDIR>/../lib/librecaulk.a' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
   > "$STAGE/bin/clang.cfg"
 # The C++ driver additionally links the toolchain's C++ runtime STATICALLY but GAP-FILLING, so every
@@ -250,10 +252,10 @@ printf '%s\n' \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
   "-mmacosx-version-min=$MACOS_MIN" \
   '-isystem <CFGDIR>/../include/mavericks-compat' \
-  '-isystem <CFGDIR>/../include/LegacySupport' \
+  '-isystem <CFGDIR>/../include/recaulk' \
   '-nostdlib++' \
   '-Wl,-U,__availability_version_check' \
-  '<CFGDIR>/../lib/libMacportsLegacySupport.a' \
+  '<CFGDIR>/../lib/librecaulk.a' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
   '--ld-path=<CFGDIR>/portable-ld' \
   > "$STAGE/bin/clang++.cfg"
@@ -276,7 +278,7 @@ echo "==> 6. compat guard: the toolchain's own Mach-O record their SDK pins"
 set --
 for f in "$STAGE"/bin/* "$STAGE"/lib/*.a "$STAGE"/lib/*.dylib; do
   [ -f "$f" ] && [ ! -L "$f" ] || continue
-  case "${f##*/}" in libc++*|libunwind*|libMacportsLegacySupport.a) continue ;; esac
+  case "${f##*/}" in libc++*|libunwind*|librecaulk.a) continue ;; esac
   if lipo -info "$f" >/dev/null 2>&1; then set -- ${1+"$@"} "$f"; fi
 done
 [ "$#" -gt 0 ] || { echo "FATAL: no host Mach-O found under $STAGE" >&2; exit 1; }
@@ -286,9 +288,9 @@ MAVERICKS_ALLOW_ARCHS=x86_64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" 
 # The C++ runtime archives are linked into every C++ program too, so they are held to the same arch
 # and pins -- but not through assert_binary_compatible.sh, whose import check reads every archive
 # member's undefined symbols. libc++'s chrono.o imports clock_gettime (10.12+) by design, and the
-# legacy-support archive defines it in the final link; tests/smoke-target.sh proves that link on the
+# Recaulk archive defines it in the final link; tests/smoke-target.sh proves that link on the
 # binary it builds. So these get only the per-slice rule the guard itself applies (sdk-pins.sh).
-# libMacportsLegacySupport.a is left out: it is the prebuilt legacy-support release, checked where it
+# librecaulk.a is left out: it is the prebuilt Recaulk release, checked where it
 # is built.
 . "$SHIPYARD_SCRIPTS/sdk-pins.sh"
 for a in "$RTDIR/libc++.a" "$RTDIR/libc++abi.a" "$RTDIR/libunwind.a"; do
