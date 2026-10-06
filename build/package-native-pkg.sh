@@ -59,9 +59,9 @@ mv "$OUTDIR/$NAME" "$DIST/$NAME"
 echo "built $DIST/$NAME"
 
 # What this variant was built FROM. Conformance compares any key appearing in more than one variant,
-# so llvm/legacy_support/target must match the cross record; variant/arch/prefix/pkg/identifier are
+# so llvm/recaulk/target must match the cross record; variant/arch/prefix/pkg/identifier are
 # the keys that are supposed to differ.
 sh "$SHIPYARD_SCRIPTS/build-info.sh" "$DIST/build-info-native.txt" \
   variant=native arch=x86_64 prefix="$NATIVE_PREFIX" pkg="$NAME" identifier="$NATIVE_IDENTIFIER" \
-  llvm="$LLVM_VERSION" legacy_support="$MLS_VERSION" target="$TARGET_TRIPLE"
+  llvm="$LLVM_VERSION" recaulk="$RECAULK_VERSION" target="$TARGET_TRIPLE"
 cat "$DIST/build-info-native.txt"

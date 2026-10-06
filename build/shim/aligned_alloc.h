@@ -9,12 +9,10 @@
  *
  *   aligned_alloc.h:44:12: error: no member named 'aligned_alloc' in the global namespace
  *
- * Stock upstream macports-legacy-support does NOT back-fill it -- its stdlib.h wrapper declares
- * posix_memalign and arc4random only, and libMacportsLegacySupport.a defines no aligned_alloc. This
- * is the one place Wowfunhappy's forked shim carried a back-fill that the family's port does not
- * (native-bootstrap/build.sh names mbstate_t, aligned_alloc and the *at family among its wrapper
- * headers), so the
- * spec's instruction applies: carry it as a TRACKED patch here, never a private source.
+ * Recaulk DEFINES _aligned_alloc in librecaulk.a but DECLARES it in no header (and the 10.9 SDK does
+ * not either), so libc++ still fails to compile without a declaration. This header supplies one, as a
+ * static inline that does not collide with anything: nothing else declares it. Carried as a TRACKED
+ * patch here, never a private source.
  *
  * The implementation is the same substitution libc++ itself makes on platforms without aligned_alloc
  * (Android below API 28): posix_memalign, which 10.9 has. libc++'s caller already rounds the size up

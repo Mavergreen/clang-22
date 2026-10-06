@@ -61,5 +61,5 @@ echo "built $pkg"
 # What this variant was built FROM (conformance compares variants; a reader can see it).
 sh "$SHIPYARD_SCRIPTS/build-info.sh" "$DIST/build-info-cross.txt" \
   variant=cross arch=arm64 prefix="$CROSS_PREFIX" pkg="$(basename "$pkg")" identifier="$CROSS_IDENTIFIER" \
-  llvm="$LLVM_VERSION" legacy_support="$MLS_VERSION" target="$TARGET_TRIPLE"
+  llvm="$LLVM_VERSION" recaulk="$RECAULK_VERSION" target="$TARGET_TRIPLE"
 cat "$DIST/build-info-cross.txt"

@@ -14,12 +14,13 @@ It ships two artifacts, built from the same source:
 2. mavericks-clang-22-native-*.pkg (installs into /usr/local/mavergreen/clang22)
    The same toolchain, RUNNING on Mac OS X 10.9 (x86_64) itself.
 
-Each .pkg also bakes in the macports-legacy-support static shim
-(libMacportsLegacySupport.a plus its wrapper headers), which back-fills
-newer-than-10.9 libc/libSystem APIs so a 10.9-targeted binary links. It is
-consumed as a prebuilt artifact from Mavergreen/macports-legacy-support,
-itself a port of https://github.com/macports/macports-legacy-support
-(BSD-3-Clause). The pin lives in build/versions.sh; see INGREDIENTS.md.
+Each .pkg also bakes in Recaulk (librecaulk.a plus its wrapper headers),
+which back-fills newer-than-10.9 libc/libSystem APIs so a 10.9-targeted
+binary links. It is consumed as a prebuilt artifact from Mavergreen/recaulk
+(https://github.com/Mavergreen/recaulk); its own back-fills are ISC. The
+macports-legacy-support code it builds in
+(https://github.com/macports/macports-legacy-support) keeps its own license,
+BSD-3-Clause. The pin lives in components/recaulk/version; see INGREDIENTS.md.
 
 The Apple MacOSX10.9 SDK is NOT redistributed here. It is fetched at build
 time (and, for an installed toolchain, at first use) by mavericks-shipyard's

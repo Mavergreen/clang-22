@@ -1,6 +1,6 @@
 name: repackage-on-ingredient-bump
 
-# When the legacy-support pin in build/versions.sh is bumped by Renovate, dispatch a
+# When the Recaulk pin (components/recaulk/version) is bumped by Renovate, dispatch a
 # -mavericks.(N+1) repackage via the shared reusable workflow -- release.yml's workflow_dispatch
 # local_release path cuts and publishes inline. UPSTREAM_VERSION (own upstream, LLVM) is the N=1
 # path handled by release.yml on push-to-main, so it is excluded here.
@@ -14,7 +14,7 @@ on:
   push:
     branches: [main]
     paths:
-      - build/versions.sh    # the legacysupport shim pin (MLS_VERSION)
+      - components/recaulk/version    # the Recaulk pin
 
 jobs:
   repackage:

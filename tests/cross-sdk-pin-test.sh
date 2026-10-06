@@ -77,7 +77,7 @@ fi
 # libraries) arm64 only, the builtins x86_64 only, each slice recording its arch's pin.
 for line in \
   'for f in "$STAGE"/bin/* "$STAGE"/lib/*.a "$STAGE"/lib/*.dylib; do' \
-  '  case "${f##*/}" in libc++*|libunwind*|libMacportsLegacySupport.a) continue ;; esac' \
+  '  case "${f##*/}" in libc++*|libunwind*|librecaulk.a) continue ;; esac' \
   'MAVERICKS_ALLOW_ARCHS=arm64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$@"' \
   'MAVERICKS_ALLOW_ARCHS=x86_64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$STAGE"/lib/clang/*/lib/darwin/*.a'
 do

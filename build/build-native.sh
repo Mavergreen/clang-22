@@ -131,10 +131,10 @@ for h in "c++" "__libunwind_config.h" "libunwind.h" "libunwind.modulemap"; do
 done
 [ -d "$STAGE/include/c++/v1" ] || { echo "FATAL: libc++ headers missing from $STAGE/include/c++/v1" >&2; exit 1; }
 
-cp -p "$CROSS_STAGE/lib/libMacportsLegacySupport.a" "$STAGE/lib/"
-rm -rf "$STAGE/include/mavericks-compat" "$STAGE/include/LegacySupport"
+cp -p "$CROSS_STAGE/lib/librecaulk.a" "$STAGE/lib/"
+rm -rf "$STAGE/include/mavericks-compat" "$STAGE/include/recaulk"
 cp -R "$CROSS_STAGE/include/mavericks-compat" "$STAGE/include/"
-cp -R "$CROSS_STAGE/include/LegacySupport" "$STAGE/include/"
+cp -R "$CROSS_STAGE/include/recaulk" "$STAGE/include/"
 cp -p "$CROSS_STAGE/libexec/"* "$STAGE/libexec/" 2>/dev/null || true
 install -d "$STAGE/SDKs"
 cp -p "$CROSS_STAGE/bin/portable-ld" "$STAGE/bin/portable-ld"; chmod +x "$STAGE/bin/portable-ld"
