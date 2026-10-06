@@ -19,6 +19,36 @@ for t in "$WORK/stage-native$NATIVE_PREFIX" "$WORK/stage$CROSS_PREFIX"; do
 done
 sh "$R/build/package-native-pkg.sh" > "$W/native.log" 2>&1 || { cat "$W/native.log"; fail "the native archive must package from a staged tree"; }
 sh "$R/build/package-cross-pkg.sh" > "$W/cross.log" 2>&1 || { cat "$W/cross.log"; fail "the cross archive must package from a staged tree"; }
+L="libcxx$CLANG_LINE"
+mk_lib() { mkdir -p "$(dirname "$1")"; printf 'placeholder\n' > "$1"; }
+mk_lib "$WORK/stage-libcxx$LIBCXX_PREFIX/lib/libc++.1.dylib"
+mk_lib "$WORK/stage-libcxx$LIBCXX_PREFIX/lib/libc++abi.1.dylib"
+sh "$R/build/package-libcxx-pkg.sh" > "$W/libcxx.log" 2>&1 || { cat "$W/libcxx.log"; fail "the libcxx archive must package from a staged tree"; }
+VER="$(ls "$DIST"/mavericks-clang-*-native-*.pkg | sed -n "s|.*/mavericks-clang-$CLANG_LINE-native-\(.*\)\.pkg|\1|p")"
+[ -f "$DIST/$L-$VER.pkg" ] || fail "no $L-$VER.pkg in dist"
+[ "$(ls "$DIST"/libcxx*.pkg | wc -l | tr -d ' ')" = 1 ] || fail "$L-$VER.pkg is the only libcxx pkg"
+LX="$W/x-libcxx"; pkgutil --expand "$DIST/$L-$VER.pkg" "$LX"
+[ "$(sed -n 's/.*<line choice="\([^"]*\)".*/\1/p' "$LX/Distribution" | grep -v '^default$' | head -1)" = dev.mavergreen.base ] \
+  || fail "$L: the base component comes first"
+grep -q 'os-version min="10.9.5"' "$LX/Distribution" || fail "$L: the floor is 10.9.5"
+LV="$W/vol-libcxx"; mkdir -p "$LV"
+for comp in "$LX"/*.pkg; do (cd "$LV" && gzip -dc "$comp/Payload" | cpio -id --quiet); done
+lpb() { /usr/libexec/PlistBuddy -c "Print :$1" "$LV/usr/local/mavergreen/$L/mavergreen.plist"; }
+[ "$(lpb group)/$(lpb line)/$(lpb identifier)" = "libcxx/$CLANG_LINE/$LIBCXX_IDENTIFIER" ] \
+  || fail "$L manifest: group libcxx, line $CLANG_LINE, identifier $LIBCXX_IDENTIFIER"
+PRE="$LX/libcxx$CLANG_LINE-component.pkg/Scripts/preinstall"
+[ -f "$PRE" ] || fail "$L's component carries a preinstall (so the no-requirement check below is not vacuous)"
+if grep -qi 'requires' "$PRE"; then fail "$L's preinstall carries no requirement refusal"; fi
+LMG() { sh "$SHIPYARD_SCRIPTS/mavergreen.sh" --root "$LV" "$@"; }
+LMG link "$L" || fail "linking $L must succeed"
+LMG check || fail "a box with only $L must pass mavergreen check"
+if find "$LV/usr/local/mavergreen" -type l | while read -r l; do readlink "$l"; done | grep -q "\.\./$L/"; then
+  fail "$L exports nothing into the farm"
+fi
+for k in llvm recaulk target; do
+  a="$(sed -n "s/^$k=//p" "$DIST/build-info-libcxx.txt")"; b="$(sed -n "s/^$k=//p" "$DIST/build-info-native.txt")"
+  [ -n "$a" ] && [ "$a" = "$b" ] || fail "build-info-libcxx.txt's $k agrees with the native record"
+done
 V="$W/vol"; mkdir -p "$V"
 for p in "$DIST"/mavericks-clang-*-native-*.pkg "$DIST"/mavericks-clang-*-cross-*.pkg; do
   [ -f "$p" ] || fail "no archive at $p"

@@ -58,13 +58,18 @@ repo, not a bump of this one's `UPSTREAM_VERSION`. The Renovate manager uses a `
 (`llvm-22`) with `packageName` pointing at the real repo, capped to this line -- an uncapped line
 is one Renovate bump away from silently becoming a different product.
 
-Each line ships **two variants from one release**. Both are members of the `clang` group, so one box
-can hold both, and `mavergreen select clang` picks which one owns the bare names:
+Each line ships **two toolchain variants from one release**, plus the libcxx22 runtime. The two
+variants are members of the `clang` group, so one box can hold both, and `mavergreen select clang`
+picks which one owns the bare names:
 
 | Variant | Runs on | Prefix | Identifier | Install floor |
 |---|---|---|---|---|
 | native | x86_64 Mavericks (the flagship) | `/usr/local/mavergreen/clang<line>` | `dev.mavergreen.clang.clang<line>` | **10.9.5** |
 | cross | modern arm64 macOS | `/usr/local/mavergreen/clang<line>-cross` | `dev.mavergreen.clang.clang<line>-cross` | 11.0 |
+| libcxx22 (runtime) | x86_64 Mavericks | `/usr/local/mavergreen/libcxx<line>` | `dev.mavergreen.clang.libcxx<line>` | 10.9.5 |
+
+libcxx22 is relinked from the cross build's `libc++.a`/`libc++abi.a` by `build/build-libcxx.sh`; its group
+is `libcxx`, and its build-info agrees with the toolchains on `llvm`, `recaulk` and `target`.
 
 Both target `x86_64-apple-macos10.9`, and both are built on the modern arm64 runner in one run — the
 native variant is cross-*hosted* using the cross variant as its compiler, so nothing x86_64 is ever
