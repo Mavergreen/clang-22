@@ -24,6 +24,7 @@ echo "$out" | grep -qx 'FULL=22.1.1-mavericks.4' || { echo "FAIL local FULL: $ou
   [ "$LLVM_VERSION" = "22.1.1" ] || { echo "FAIL LLVM_VERSION=$LLVM_VERSION"; exit 1; }
   [ "$TARGET_TRIPLE" = "x86_64-apple-macos10.9" ] || { echo "FAIL TARGET_TRIPLE=$TARGET_TRIPLE"; exit 1; }
   [ -n "$MLS_VERSION" ] || { echo "FAIL MLS_VERSION empty"; exit 1; }
+  expr "$RECAULK_VERSION" : '^[0-9]\{8\}\.[0-9][0-9]*$' >/dev/null || { echo "FAIL RECAULK_VERSION=$RECAULK_VERSION"; exit 1; }
   case "$LLVM_SRC_URL" in *"$LLVM_VERSION"*) : ;; *) echo "FAIL LLVM_SRC_URL=$LLVM_SRC_URL"; exit 1 ;; esac
 ) || exit 1
 

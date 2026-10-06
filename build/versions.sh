@@ -46,6 +46,16 @@ export LLVM_SIG_URL="${LLVM_SRC_URL}.sig"
 # this pin via the shared preset's `# mavericks-legacysupport` customManager (unquoted, marker on line).
 export MLS_VERSION=1.5.2-mavericks.6   # mavericks-legacysupport
 
+# Recaulk: the 10.9 back-fill library, pinned in components/recaulk/version (bare YYYYMMDD.N, bumped
+# by shipyard's shared Renovate preset) and fetched from its release by build/fetch-recaulk.sh.
+RECAULK_VERSION="$(tr -d ' \t\r\n' < "$REPO_ROOT/components/recaulk/version")"
+if ! expr "$RECAULK_VERSION" : '^[0-9]\{8\}\.[0-9][0-9]*$' >/dev/null; then
+  echo "versions.sh: components/recaulk/version holds '$RECAULK_VERSION', expected YYYYMMDD.N" >&2
+  return 1 2>/dev/null || exit 1
+fi
+export RECAULK_VERSION
+export RECAULK_BASE_URL="${RECAULK_BASE_URL:-https://github.com/Mavergreen/recaulk/releases/download}"
+
 # Both variants TARGET x86_64 Mavericks; they differ in what they RUN on.
 #   native — runs on x86_64 Mavericks (the flagship a Mavericks user installs); canonical prefix,
 #            and its pkg carries the 10.9.5 install floor.
