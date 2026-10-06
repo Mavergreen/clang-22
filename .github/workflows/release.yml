@@ -3,7 +3,7 @@ name: release
 # Both clang-22 variants, built on FREE standard macos runners. A push to main that brings a new LLVM
 # upstream auto-cuts <upstream>-mavericks.1; a tag publishes that tag; a local_release dispatch cuts the
 # next -mavericks.N; anything else builds without publishing. build-cross (the big build: clang+lld +
-# the x86_64/10.9 runtimes) hands its staged toolchain to build-native, which cross-HOSTS the x86_64/10.9
+# the x86_64/10.9 runtimes, which it also relinks and packages as libcxx22) hands its staged toolchain to build-native, which cross-HOSTS the x86_64/10.9
 # clang using it as the compiler. No 10.9 runner anywhere; the compat guards + emitted-binary smokes are
 # the in-CI equivalence proof.
 
@@ -176,6 +176,42 @@ jobs:
             dist/*cross*.pkg
             dist/build-info-cross.txt
 
+      # libcxx22: libc++/libc++abi relinked from the runtimes archives above, shipped beside clang22. It
+      # lives in this job because the archives and the cross clang are here; its x86_64/10.9 updater
+      # builds on this arm64 runner exactly as the native one does.
+      - name: Relink libc++/libc++abi as the libcxx22 runtime dylibs
+        run: sh build/build-libcxx.sh
+
+      - name: libcxx22 shape + parity against Wowfunhappy's libc++
+        run: sh tests/libcxx-shape-test.sh
+
+      - name: libcxx22 runs a C++ program (exceptions, iostreams, threads)
+        run: sh tests/libcxx-runtime-test.sh
+
+      - name: Build the libcxx22 Sparkle updater (x86_64/10.9)
+        run: |
+          set -eu
+          shipyard-cmake -S . -B "$MAVERICKS_BUILD_ROOT/clang-updater-libcxx" -DCLANG_VARIANT=libcxx \
+            -DMAVERICKS_ALLOW_GENERIC_ICON=ON -DCMAKE_OBJC_COMPILER=/usr/bin/clang \
+            -DCMAKE_TOOLCHAIN_FILE="$SHIPYARD_SCRIPTS/../MavericksToolchain.cmake"
+          shipyard-cmake --build "$MAVERICKS_BUILD_ROOT/clang-updater-libcxx" --target libcxx22-updater
+          # sed 1d: otool's header line is the binary's own path, not a dependency -- see the cross updater.
+          otool -L "$MAVERICKS_BUILD_ROOT/clang-updater-libcxx/libcxx22-updater.app/Contents/MacOS/libcxx22-updater" > /tmp/o-all.txt
+          cat /tmp/o-all.txt
+          sed 1d /tmp/o-all.txt > /tmp/o.txt
+          ! grep -qiE 'usr/local/mavergreen/' /tmp/o.txt || { echo "::error::libcxx22 updater links a product tree"; exit 1; }
+
+      - name: Package the libcxx22 .pkg + build-info
+        run: UPD_APP="$MAVERICKS_BUILD_ROOT/clang-updater-libcxx/libcxx22-updater.app" sh build/package-libcxx-pkg.sh
+
+      - name: Upload libcxx22 artifacts (pkg + build-info)
+        uses: actions/upload-artifact@v7
+        with:
+          name: variant-libcxx
+          path: |
+            dist/libcxx*.pkg
+            dist/build-info-libcxx.txt
+
       # TAR, not a raw directory upload. upload-artifact does not preserve the executable bit and
       # dereferences symlinks: the staged prefix is full of both (bin/clang -> clang-22, the versioned
       # dylib chains), so a plain upload arrives with a non-executable clang -- build-native.sh's
@@ -322,6 +358,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with: { name: variant-native, path: dist }
 
+      - uses: actions/download-artifact@v8
+        with: { name: variant-libcxx, path: dist }
+
       # The body travels IN the artifact: publish-release.yml does not check out the repo. One call
       # writes the file both sign_and_appcast.sh invocations below (native + cross) and the Release
       # body consume -- the same bytes, so the page and Sparkle's update dialog cannot disagree.
@@ -357,6 +396,7 @@ jobs:
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$VER"
           NPKG="$(ls dist/*native*.pkg | head -1)"
           XPKG="$(ls dist/*cross*.pkg | head -1)"
+          LPKG="$(ls dist/libcxx*.pkg | head -1)"
           # dist/RELEASE_NOTES.md, staged above -- the SAME bytes the Release body uses, so the page
           # and Sparkle's update dialog cannot tell two different stories about one version.
           sh "$SHIPYARD_SCRIPTS/sign_and_appcast.sh" \
@@ -367,8 +407,13 @@ jobs:
             --channel-title "Clang for Mavericks 22 (cross)" --version "$VER" \
             --pkg-url "$base/$(basename "$XPKG")" --notes-file dist/RELEASE_NOTES.md \
             --pkg "$XPKG" --min-os 11.0 --product clang22-cross --feed-dir dist
+          sh "$SHIPYARD_SCRIPTS/sign_and_appcast.sh" \
+            --channel-title "libc++ 22 for Mavericks" --version "$VER" \
+            --pkg-url "$base/$(basename "$LPKG")" --notes-file dist/RELEASE_NOTES.md \
+            --pkg "$LPKG" --min-os 10.9.5 --product libcxx22 --feed-dir dist
           echo "=== clang22.xml ==="; cat dist/clang22.xml
           echo "=== clang22-cross.xml ==="; cat dist/clang22-cross.xml
+          echo "=== libcxx22.xml ==="; cat dist/libcxx22.xml
 
       - name: Artifact conformance (both variants agree; scheme/floor correct)
         if: needs.build-cross.outputs.publish == 'yes'
@@ -382,7 +427,7 @@ jobs:
         if: needs.build-cross.outputs.publish == 'yes'
         run: |
           set -eu
-          for a in clang22.xml clang22-cross.xml; do
+          for a in clang22.xml clang22-cross.xml libcxx22.xml; do
             sh "$SHIPYARD_SCRIPTS/assert_appcast_upgradeable.sh" --appcast "dist/$a" \
               --version "${{ needs.build-cross.outputs.version }}" --upstream-glob "22.*"
           done
@@ -397,6 +442,7 @@ jobs:
             dist/RELEASE_NOTES.md
             dist/build-info-*.txt
             dist/clang22*.xml
+            dist/libcxx22*.xml
 
   # Before anything is published: no log of this run, and no file about to be released, carries a
   # piece of the signing key. shipyard's publish-release.yml looks for this job's record on any signed
