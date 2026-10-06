@@ -1,7 +1,7 @@
 Mavergreen/clang-22
 
 This repository builds and republishes a Clang/LLVM toolchain for Mavericks.
-It ships two artifacts, built from the same source:
+It ships three artifacts, built from the same source:
 
 1. mavericks-clang-22-cross-*.pkg (installs into /usr/local/mavergreen/clang22-cross)
    A clang/LLVM toolchain that RUNS on modern Apple-Silicon macOS and TARGETS
@@ -14,8 +14,13 @@ It ships two artifacts, built from the same source:
 2. mavericks-clang-22-native-*.pkg (installs into /usr/local/mavergreen/clang22)
    The same toolchain, RUNNING on Mac OS X 10.9 (x86_64) itself.
 
-Each .pkg also bakes in Recaulk (librecaulk.a plus its wrapper headers),
-which back-fills newer-than-10.9 libc/libSystem APIs so a 10.9-targeted
+3. libcxx22-*.pkg (installs into /usr/local/mavergreen/libcxx22)
+   LLVM's libc++ and libc++abi from the same build, as runtime dylibs for
+   Mac OS X 10.9 (x86_64). Licensed Apache-2.0 WITH LLVM-exception. Recaulk
+   (below) is linked in, not exported.
+
+Each toolchain .pkg also bakes in Recaulk (librecaulk.a plus its wrapper
+headers), which back-fills newer-than-10.9 libc/libSystem APIs so a 10.9-targeted
 binary links. It is consumed as a prebuilt artifact from Mavergreen/recaulk
 (https://github.com/Mavergreen/recaulk); its own back-fills are ISC. The
 macports-legacy-support code it builds in

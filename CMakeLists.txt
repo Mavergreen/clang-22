@@ -4,19 +4,20 @@ cmake_minimum_required(VERSION 3.16)
 # mavericks-golang isolates it.
 #   -DCLANG_VARIANT=native (default): updates the NATIVE .pkg; x86_64/min-10.9 (runs on the 10.9 box).
 #   -DCLANG_VARIANT=cross           : updates the CROSS .pkg; arm64/min-11 (runs on the dev Mac).
+#   -DCLANG_VARIANT=libcxx          : updates the libcxx<line> runtime .pkg; x86_64/min-10.9 (as native).
 # Each links the matching Sparkle slice, derived automatically from CMAKE_OSX_ARCHITECTURES by
 # mavericks_add_updater_app. Native and cross use SEPARATE build dirs.
-set(CLANG_VARIANT "native" CACHE STRING "which product this updater updates: native | cross")
+set(CLANG_VARIANT "native" CACHE STRING "which product this updater updates: native | cross | libcxx")
 
 # Before project(): CMAKE_OSX_* only take effect if set ahead of the compiler/platform checks.
-if(CLANG_VARIANT STREQUAL "native")
+if(CLANG_VARIANT STREQUAL "native" OR CLANG_VARIANT STREQUAL "libcxx")
   set(CMAKE_OSX_DEPLOYMENT_TARGET 10.9 CACHE STRING "native updater runs on 10.9")
   set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "Intel-only (10.9)")
 elseif(CLANG_VARIANT STREQUAL "cross")
   set(CMAKE_OSX_DEPLOYMENT_TARGET 11.0 CACHE STRING "arm64 macOS floor")
   set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "native Apple Silicon")
 else()
-  message(FATAL_ERROR "CLANG_VARIANT must be 'native' or 'cross' (got '${CLANG_VARIANT}')")
+  message(FATAL_ERROR "CLANG_VARIANT must be 'native', 'cross' or 'libcxx' (got '${CLANG_VARIANT}')")
 endif()
 
 project(ClangUpdater LANGUAGES OBJC)
@@ -48,6 +49,12 @@ if(CLANG_VARIANT STREQUAL "native")
   set(_logprefix  "MavClangUpdater")
   set(_confirmbody "The clang toolchain in /usr/local/mavergreen/clang${MAV_CLANG_LINE} was updated.")
   set(_relaunch   "/tmp/.mavericks-clang-updater-relaunched")
+elseif(CLANG_VARIANT STREQUAL "libcxx")
+  set(_short      libcxx${MAV_CLANG_LINE})
+  set(_product    "Mavericks libc++ ${MAV_CLANG_LINE}")
+  set(_logprefix  "MavLibcxxUpdater")
+  set(_confirmbody "The C++ runtime in /usr/local/mavergreen/libcxx${MAV_CLANG_LINE} was updated.")
+  set(_relaunch   "/tmp/.mavericks-libcxx-updater-relaunched")
 else()
   set(_short      clang${MAV_CLANG_LINE}-cross)
   set(_product    "Mavericks Clang ${MAV_CLANG_LINE} (cross)")
