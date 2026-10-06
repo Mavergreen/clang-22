@@ -1,13 +1,31 @@
-# mavericks-clang
+# Clang 22 for Mavericks
 
-An unofficial community build of **Clang/LLVM for Mavericks** — a clang toolchain that
-runs on modern Apple-Silicon macOS and targets **Mac OS X 10.9 (Mavericks)** out of the box.
-Not affiliated with the LLVM project.
+Clang/LLVM toolchain for Mac OS X 10.9 Mavericks.
 
-`clang++ foo.cpp -o foo` produces a working `x86_64` 10.9 binary with the legacy-support
-polyfill linked — no extra flags.
+## Compiling
 
-## Layout
-- `build/` — the CI cross-build (runs on a modern arm64 runner).
-- `native-bootstrap/` — Wowfunhappy's original on-10.9 bootstrap scripts, kept for a future
-  local-Mavericks build phase; not used by CI.
+### Directly on Mavericks
+
+```sh
+sudo installer -pkg mavericks-clang-22-native-<version>.pkg -target /
+```
+
+In a new Terminal:
+
+```sh
+clang++-22 -o hello hello.cpp
+./hello
+```
+
+### From Apple Silicon
+
+```sh
+sudo installer -pkg mavericks-clang-22-cross-<version>.pkg -target /
+```
+
+In a new Terminal:
+
+```sh
+clang++-22 -o hello hello.cpp
+scp hello your-mavericks-system:
+```
