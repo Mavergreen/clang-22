@@ -1,5 +1,4 @@
-# Not committed: brainstorm/spec/plan docs and other non-code notes (tracked out-of-band)
-docs/
+# Not committed: superpowers specs, plans, ledgers and the backlog (QUEUE.md)
 .superpowers/
 
 # Build outputs / fetched inputs. Heavy build I/O (WORK) defaults to a LOCAL disk
