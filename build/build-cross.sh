@@ -58,8 +58,10 @@ RUNTIME_TARGET="x86_64-apple-darwin"
 # Per-runtime-target flags use the RUNTIMES_<triple>_<var> prefix. -fno-jump-tables is
 # belt-and-suspenders for old-linker relocation quirks.
 #
-# compiler-rt is BUILTINS ONLY, which takes eight explicit OFFs rather than the four obvious ones.
-# Everything else in compiler-rt pulls in sanitizer_common, which needs os/log.h (10.12+) that neither
+# compiler-rt is BUILTINS + PROFILE, which takes seven explicit OFFs rather than the three obvious ones.
+# The profile runtime (libclang_rt.profile_osx.a: -fprofile-instr-generate, --coverage) is plain C
+# over POSIX and needs nothing past 10.9; tests/profile-runtime-test.sh proves it links, runs and
+# reads back. Everything else in compiler-rt pulls in sanitizer_common, which needs os/log.h (10.12+) that neither
 # the 10.9 SDK nor Recaulk has -- Recaulk carries os/lock.h, not os/log.h. Turning
 # off SANITIZERS alone leaves CTX_PROFILE and GWP_ASAN at their default ON, and the build still dies
 # in sanitizer_mac.cpp with a missing header that looks nothing like "you forgot a switch".
@@ -162,7 +164,7 @@ shipyard-cmake -G Ninja -S "$SRC/llvm" -B "$BLD" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_BUILD_SANITIZERS=OFF" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_BUILD_XRAY=OFF" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_BUILD_LIBFUZZER=OFF" \
-  "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_BUILD_PROFILE=OFF" \
+  "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_BUILD_PROFILE=ON" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_BUILD_MEMPROF=OFF" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_BUILD_ORC=OFF" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_BUILD_CTX_PROFILE=OFF" \

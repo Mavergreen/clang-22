@@ -145,6 +145,10 @@ jobs:
       - name: Compat gate + emitted-binary smoke
         run: sh tests/smoke-target.sh
 
+      # Exit 77 (cannot execute x86_64) fails this step on purpose: see the test's header.
+      - name: Coverage works (profile runtime links, runs, reads back)
+        run: sh tests/profile-runtime-test.sh
+
       # A small Cocoa/ObjC build (no LLVM), so it rides in this job rather than paying for its own.
       # The arm64 Sparkle slice is derived from the updater's CMAKE_OSX_ARCHITECTURES by
       # mavericks_add_updater_app -- nothing here hand-plumbs a framework path.
@@ -307,6 +311,14 @@ jobs:
       # availability, but a compile that fails once Rosetta demonstrably works is a real defect.
       - name: Native host-binary compat guard + Rosetta smoke
         run: sh tests/smoke-native.sh
+
+      # The native prefix carries the cross build's profile runtime by copy (build-native.sh step 5),
+      # so prove the copy, with the native llvm-profdata/llvm-cov, under Rosetta.
+      - name: Native coverage works (profile runtime links, runs, reads back)
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/profile-runtime-test.sh
 
       # x86_64/min-10.9, because this updater RUNS on the 10.9 box it updates. Built by the runner's
       # Apple clang against the modern SDK -- Cocoa/Sparkle only, so it needs none of the 10.9 SDK
