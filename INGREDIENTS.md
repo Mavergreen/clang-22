@@ -103,5 +103,7 @@ Machine-read by `artifact-facts.sh` as `- <check>:<glob> : <reason>` (one line e
   explicit opt-in (`MAVERICKS_ALLOW_GENERIC_ICON=ON`), embedding no artwork at all, pending a real
   Mavericks-Clang mark. Not the LLVM dragon (trademark, and it would read as official LLVM). See
   `updater/ICON-CREDIT.txt`.
-- **SDK not redistributed** — the Apple MacOSX10.9 SDK is not baked into the artifact. The pkg ships
-  `libexec/fetch_sdk.sh` and fetches on first use (golang precedent + redistribution cleanliness).
+- **SDK not redistributed** — the Apple MacOSX10.9 SDK is not baked into the artifact (Apple's bytes).
+  Both toolchains' `SDKs` is a link to `../sdk109/SDKs`, which Longboat's `sdk109` fills
+  (`sudo longboat install 10.9`), and both pkgs refuse to install without Longboat. Without `sdk109`
+  the first compile fails naming the missing `SDKs/MacOSX10.9.sdk`.

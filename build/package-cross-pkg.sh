@@ -20,9 +20,7 @@ NAME="mavericks-clang-${CLANG_LINE}-cross-$VER.pkg"
 STAGING_OUT="$WORK/out"; mkdir -p "$STAGING_OUT"
 OUT="$STAGING_OUT/$NAME"
 
-rm -rf "$STAGE/SDKs"; ln -s "../var/clang${CLANG_LINE}-cross/SDKs" "$STAGE/SDKs"
-hook="$STAGING_OUT/postinstall-hook-cross"
-printf '#!/bin/sh\n# platform: host-agnostic\nmkdir -p "$ROOT/usr/local/mavergreen/var/clang%s-cross/SDKs"\n' "$CLANG_LINE" > "$hook"
+rm -rf "$STAGE/SDKs"; ln -s ../sdk109/SDKs "$STAGE/SDKs"
 
 UPD_APP="${UPD_APP:-}"
 UPD_DIR="/Library/Application Support/Mavergreen"
@@ -31,7 +29,7 @@ scr="$STAGING_OUT/pkg-scripts-cross"; rm -rf "$scr"
 set -- --stage "$PAYLOAD" --product "clang${CLANG_LINE}-cross" --name "Clang ${CLANG_LINE} cross toolchain for Mavericks" \
   --group clang --line "${CLANG_LINE}-cross" --version "$VER" \
   --exclude "bin/clang-${CLANG_LINE}" --exclude bin/clang.cfg --exclude bin/clang++.cfg --exclude bin/portable-ld \
-  --postinstall-hook "$hook" --scripts-out "$scr"
+  --requires longboat --scripts-out "$scr"
 if [ -n "$UPD_APP" ] && [ -d "$UPD_APP" ]; then
   set -- "$@" --updater-app "$UPD_APP"
 else

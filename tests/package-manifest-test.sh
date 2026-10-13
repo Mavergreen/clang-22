@@ -56,13 +56,20 @@ for p in "$DIST"/mavericks-clang-*-native-*.pkg "$DIST"/mavericks-clang-*-cross-
   [ "$(sed -n 's/.*<line choice="\([^"]*\)".*/\1/p' "$x/Distribution" | grep -v '^default$' | head -1)" = dev.mavergreen.base ] \
     || fail "$(basename "$p"): the base component comes first"
   for comp in "$x"/*.pkg; do (cd "$V" && gzip -dc "$comp/Payload" | cpio -id --quiet); done
-  grep -q "mkdir -p \"\$ROOT/usr/local/mavergreen/var/" "$x"/mavericks-clang-*-component.pkg/Scripts/postinstall \
-    || fail "$(basename "$p"): the postinstall creates the tree's var-backed SDKs directory"
+  if grep -q 'var/clang' "$x"/mavericks-clang-*-component.pkg/Scripts/postinstall; then
+    fail "$(basename "$p"): the postinstall creates no var/ SDKs directory; Longboat's sdk109 holds the SDK"
+  fi
+  pre="$(ls "$x"/mavericks-clang-*-component.pkg/Scripts/preinstall)"
+  E="$W/empty-vol-$(basename "$p")"; mkdir -p "$E"
+  if sh "$pre" x x "$E" > "$W/pre.out" 2>&1; then fail "$(basename "$p"): the preinstall refuses a volume without Longboat"; fi
+  grep -q 'longboat' "$W/pre.out" || { cat "$W/pre.out"; fail "$(basename "$p"): the refusal names Longboat"; }
+  mkdir -p "$E/usr/local/mavergreen/longboat"; : > "$E/usr/local/mavergreen/longboat/mavergreen.plist"
+  sh "$pre" x x "$E" > "$W/pre.out" 2>&1 || { cat "$W/pre.out"; fail "$(basename "$p"): the preinstall proceeds once Longboat is installed"; }
 done
 grep -q 'os-version min="11.0"' "$W"/x-mavericks-clang-*-cross-*.pkg/Distribution || fail "the cross archive's floor is 11.0 (R3)"
 N="clang$CLANG_LINE"; X="clang$CLANG_LINE-cross"
-[ "$(readlink "$V/usr/local/mavergreen/$N/SDKs")" = "../var/$N/SDKs" ] || fail "SDKs is a link into var/, so an upgrade keeps what a user put there (C1)"
-[ "$(readlink "$V/usr/local/mavergreen/$X/SDKs")" = "../var/$X/SDKs" ] || fail "the cross tree's SDKs is var-backed too"
+[ "$(readlink "$V/usr/local/mavergreen/$N/SDKs")" = "../sdk109/SDKs" ] || fail "the native tree's SDKs is a link into Longboat's sdk109, where the pinned SDK is installed"
+[ "$(readlink "$V/usr/local/mavergreen/$X/SDKs")" = "../sdk109/SDKs" ] || fail "the cross tree's SDKs is a link into Longboat's sdk109 too"
 pb() { /usr/libexec/PlistBuddy -c "Print :$2" "$V/usr/local/mavergreen/$1/mavergreen.plist"; }
 [ "$(pb "$N" group)/$(pb "$N" line)" = "clang/$CLANG_LINE" ] || fail "$N is group clang, line $CLANG_LINE"
 [ "$(pb "$X" group)/$(pb "$X" line)" = "clang/$CLANG_LINE-cross" ] || fail "$X is group clang, line $CLANG_LINE-cross"

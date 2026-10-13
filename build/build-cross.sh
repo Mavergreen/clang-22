@@ -198,10 +198,6 @@ done
 RTREL="${RTDIR#"$STAGE"/}"          # e.g. lib/x86_64-apple-macos10.9
 echo "    target C++ runtime: $RTREL"
 
-# First-use SDK fetch: ship the pinned-SDK fetch script; the SDK itself is deliberately NOT
-# redistributed (Apple's bytes). clang.cfg references $CROSS_PREFIX/SDKs/MacOSX10.9.sdk relatively.
-cp "$SHIPYARD_SCRIPTS/fetch_sdk.sh" "$SHIPYARD_SCRIPTS/mavericks_fetch.sh" "$SHIPYARD_SCRIPTS/sdk-pins.sh" "$STAGE/libexec/"
-
 # -Wl,-U,__availability_version_check is a PRODUCT-level flag, not a build workaround. Any 10.9-targeted
 # program using @available/__builtin_available pulls compiler-rt's os_version_check.c.o, which
 # references that symbol. compiler-rt declares it __attribute__((weak_import)) and NULL-checks it

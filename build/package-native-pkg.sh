@@ -20,9 +20,7 @@ NAME="mavericks-clang-${CLANG_LINE}-native-$VER.pkg"
 # minutes into an hour. On CI dist/ is runner-local and this is a no-op.
 OUTDIR="$WORK/out"; mkdir -p "$OUTDIR"
 
-rm -rf "$STAGE/SDKs"; ln -s "../var/clang${CLANG_LINE}/SDKs" "$STAGE/SDKs"
-hook="$OUTDIR/postinstall-hook-native"
-printf '#!/bin/sh\n# platform: host-agnostic\nmkdir -p "$ROOT/usr/local/mavergreen/var/clang%s/SDKs"\n' "$CLANG_LINE" > "$hook"
+rm -rf "$STAGE/SDKs"; ln -s ../sdk109/SDKs "$STAGE/SDKs"
 
 UPD_APP="${UPD_APP:-}"
 UPD_DIR="/Library/Application Support/Mavergreen"
@@ -31,7 +29,7 @@ scr="$OUTDIR/pkg-scripts-native"; rm -rf "$scr"
 set -- --stage "$PAYLOAD" --product "clang${CLANG_LINE}" --name "Clang ${CLANG_LINE} for Mavericks" \
   --group clang --line "$CLANG_LINE" --version "$VER" \
   --exclude "bin/clang-${CLANG_LINE}" --exclude bin/clang.cfg --exclude bin/clang++.cfg --exclude bin/portable-ld \
-  --postinstall-hook "$hook" --scripts-out "$scr"
+  --requires longboat --scripts-out "$scr"
 if [ -n "$UPD_APP" ] && [ -d "$UPD_APP" ]; then
   set -- "$@" --updater-app "$UPD_APP"
 else

@@ -16,7 +16,7 @@ CLANGXX="$STAGE/bin/clang++"
 [ -x "$CLANGXX" ] || { echo "not built -- skipping"; exit 77; }
 
 # clang.cfg references <CFGDIR>/../SDKs/MacOSX10.9.sdk, which is not redistributed; point it at the
-# fetched SDK here. After packaging, SDKs is a link into ../var/ that dangles in the stage, so it goes.
+# fetched SDK here. After packaging, SDKs is a link into ../sdk109/ that dangles in the stage, so it goes.
 if [ ! -e "$STAGE/SDKs/MacOSX10.9.sdk" ]; then
   [ ! -L "$STAGE/SDKs" ] || rm -f "$STAGE/SDKs"
   mkdir -p "$STAGE/SDKs"
