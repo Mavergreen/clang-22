@@ -1,7 +1,8 @@
 #!/bin/sh
 # platform: macOS-only -- pkgbuild, productbuild and pkgutil build and expand the fake archive
-# fetch-recaulk.sh must pick the dev.mavergreen.recaulk component by identifier (the first Payload
-# in a real recaulk pkg is dev.mavergreen.base's), verify against SHA256SUMS, and check the slice.
+# fetch-recaulk.sh must fetch through shipyard's fetch_product_pkg.sh, which picks the
+# dev.mavergreen.recaulk component by identifier (the first Payload in a real recaulk pkg is
+# dev.mavergreen.base's) and verifies against SHA256SUMS; it then checks the tree and the slice.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
 command -v pkgbuild >/dev/null 2>&1 || { echo "SKIP: no pkgbuild"; exit 77; }
@@ -11,7 +12,7 @@ printf 'int mg_probe(void){return 7;}\n' > "$T/probe.c"
 "$CC_" -arch x86_64 -c "$T/probe.c" -o "$T/probe.o" >/dev/null 2>&1 || { echo "SKIP: cannot build x86_64 object"; exit 77; }
 
 VER="$(tr -d ' \t\r\n' < "$ROOT/components/recaulk/version")"
-REL="$T/rel"; DIR="$REL/$VER"; PKG="recaulk-$VER.pkg"; mkdir -p "$DIR"
+REL="$T/rel"; DIR="$REL/Mavergreen/recaulk/releases/download/$VER"; PKG="recaulk-$VER.pkg"; mkdir -p "$DIR"
 L=usr/local/mavergreen/recaulk/lib
 
 # Decoy base component: same library path, different bytes.
@@ -32,7 +33,8 @@ sums() { ( cd "$DIR" && shasum -a 256 "$PKG" > SHA256SUMS ); }
 sums
 
 run() { # prints stdout to $T/out, stderr to $T/err; returns status
-  RECAULK_BASE_URL="file://$REL" MAVERICKS_WORK="$T/work" sh "$ROOT/build/fetch-recaulk.sh" >"$T/out" 2>"$T/err"
+  MAVERGREEN_RELEASES="file://$REL" MAVERGREEN_PKG_CACHE="$T/work/pkgs" SHIPYARD_FETCH_BACKOFF=0 \
+    MAVERICKS_WORK="$T/work" sh "$ROOT/build/fetch-recaulk.sh" >"$T/out" 2>"$T/err"
 }
 fail() { echo "FAIL: $1"; cat "$T/err" 2>/dev/null; exit 1; }
 
@@ -43,12 +45,12 @@ cmp "$lib" "$T/rc/$L/librecaulk.a" || fail "printed lib is not the recaulk compo
 
 : > "$DIR/SHA256SUMS"
 if run; then fail "unlisted pkg accepted"; fi
-grep -q 'not listed in SHA256SUMS' "$T/err" || fail "no 'not listed' message"
+grep -q 'is not listed' "$T/err" || fail "no 'not listed' message"
 
 echo "0000000000000000000000000000000000000000000000000000000000000000  $PKG" > "$DIR/SHA256SUMS"
 if run; then fail "wrong hash accepted"; fi
-grep -q 'sha mismatch' "$T/err" || fail "no 'sha mismatch' message"
-[ ! -e "$T/work/recaulk-dl/$PKG" ] || fail "cached pkg not deleted after mismatch"
+grep -q 'not the pinned' "$T/err" || fail "no checksum-mismatch message"
+[ ! -e "$T/work/pkgs/recaulk/$VER/$PKG" ] || fail "cached pkg not deleted after mismatch"
 
 cp "$T/nobase.pkg" "$DIR/$PKG"; sums
 rm -rf "$T/work"
@@ -66,14 +68,14 @@ variant() { # $1 = pkg to serve, $2 = text the stderr must contain
 # Not exactly one component with the identifier: two of them.
 pkgbuild --root "$T/rc" --identifier dev.mavergreen.recaulk --version 1 "$T/rc2.pkg" >/dev/null 2>&1
 productbuild --package "$T/rc.pkg" --package "$T/rc2.pkg" "$T/two.pkg" >/dev/null 2>&1
-variant "$T/two.pkg" 'expected exactly one component'
+variant "$T/two.pkg" 'expected one component'
 
 # Right component, but no lib/librecaulk.a in its payload.
 mkdir -p "$T/nolib/usr/local/mavergreen/recaulk/include/recaulk"
 printf '/* time.h */\n' > "$T/nolib/usr/local/mavergreen/recaulk/include/recaulk/time.h"
 pkgbuild --root "$T/nolib" --identifier dev.mavergreen.recaulk --version 1 "$T/nolib.pkg" >/dev/null 2>&1
 productbuild --package "$T/base.pkg" --package "$T/nolib.pkg" "$T/nolib-prod.pkg" >/dev/null 2>&1
-variant "$T/nolib-prod.pkg" 'librecaulk.a in the'
+variant "$T/nolib-prod.pkg" 'lib/librecaulk.a in the'
 
 # Right component, but no include/recaulk in its payload.
 mkdir -p "$T/noinc/$L"; cp "$T/rc/$L/librecaulk.a" "$T/noinc/$L/"

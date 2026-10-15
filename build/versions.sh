@@ -49,7 +49,6 @@ if ! expr "$RECAULK_VERSION" : '^[0-9]\{8\}\.[0-9][0-9]*$' >/dev/null; then
   return 1 2>/dev/null || exit 1
 fi
 export RECAULK_VERSION
-export RECAULK_BASE_URL="${RECAULK_BASE_URL:-https://github.com/Mavergreen/recaulk/releases/download}"
 
 # Both variants TARGET x86_64 Mavericks; they differ in what they RUN on.
 #   native — runs on x86_64 Mavericks (the flagship a Mavericks user installs); canonical prefix,

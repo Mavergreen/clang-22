@@ -33,8 +33,9 @@ echo "==> 2. fetch + GPG-verify LLVM source"
 command -v gpg >/dev/null 2>&1 \
   || { echo "FATAL: gpg not found; it verifies the LLVM source tarball (brew install gnupg)" >&2; exit 1; }
 tb="$WORK/llvm-project-$LLVM_VERSION.src.tar.xz"
-[ -f "$tb" ]     || curl -fsSL -o "$tb" "$LLVM_SRC_URL"
-[ -f "$tb.sig" ] || curl -fsSL -o "$tb.sig" "$LLVM_SIG_URL"
+. "$SHIPYARD_SCRIPTS/mavericks_fetch.sh"
+[ -f "$tb" ]     || shipyard_curl "$LLVM_SRC_URL" "$tb"
+[ -f "$tb.sig" ] || shipyard_curl "$LLVM_SIG_URL" "$tb.sig"
 GNUPGHOME="$WORK/gpg"; export GNUPGHOME; mkdir -p "$GNUPGHOME"; chmod 700 "$GNUPGHOME"
 gpg --batch --quiet --import "$HERE/../keys/llvm-release.asc"
 gpg --batch --quiet --verify "$tb.sig" "$tb" || { echo "FATAL: LLVM source signature failed" >&2; exit 1; }
