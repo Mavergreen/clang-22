@@ -296,7 +296,7 @@ for a in "$RTDIR/libc++.a" "$RTDIR/libc++abi.a" "$RTDIR/libunwind.a"; do
   slices="$(sh "$SHIPYARD_SCRIPTS/macho-slices.sh" "$a")" || { echo "FATAL: $a is not a readable Mach-O" >&2; exit 1; }
   while read -r s_arch s_ft s_minos s_sdk; do
     [ "$s_arch" = x86_64 ] || { echo "FATAL: $a has a slice for $s_arch; the target runtime is x86_64 only" >&2; exit 1; }
-    why="$(mav_sdk_rule "$s_arch" "$s_ft" "$s_minos" "$s_sdk")" || { echo "FATAL: $a: $why" >&2; exit 1; }
+    why="$(shipyard_sdk_rule "$s_arch" "$s_ft" "$s_minos" "$s_sdk")" || { echo "FATAL: $a: $why" >&2; exit 1; }
   done <<EOF
 $slices
 EOF
