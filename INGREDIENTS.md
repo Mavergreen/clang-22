@@ -1,10 +1,10 @@
 # Build ingredients
 
-Everything baked into the shipped `.pkg`s (both variants), where it is pinned, and how a change to it
-reaches a release. An *ingredient* is an input to the product; the *own upstream* is the thing this repo exists
-to port. An own-upstream bump cuts `<upstream>-mavericks.1`; an ingredient bump cuts a
-`-mavericks.(N+1)` repackage of the same upstream, via
-`.github/workflows/repackage-on-ingredient-bump.yml`.
+Everything baked into the shipped `.pkg`s (clang22, clang22-cross and libcxx22), where it is
+pinned, and how a change to it reaches a release. An *ingredient* is an input to the product; the
+*own upstream* is the thing this repo exists to port. An own-upstream bump cuts
+`<upstream>-mavericks.1`; an ingredient bump cuts a `-mavericks.(N+1)` repackage of the same
+upstream, via `.github/workflows/repackage-on-ingredient-bump.yml`.
 
 | Ingredient | Pinned in | Renovate | On a bump |
 |---|---|---|---|

@@ -32,6 +32,9 @@ RTDIR="$(dirname "$(find "$CROSS_STAGE/lib" -name 'libc++.a' -print 2>/dev/null 
 for lib in libc++.a libc++abi.a; do
   [ -f "$RTDIR/$lib" ] || { echo "FATAL: $lib missing from $RTDIR" >&2; exit 1; }
 done
+# Nothing below links the builtins: each dylib gets them from clang's own driver, which links
+# lib/clang/*/lib/darwin/libclang_rt.osx.a by default. The check is a guard that the cross stage is
+# whole, so a broken runtimes build fails here, by name, instead of as unresolved ___muloti4 & co.
 set -- "$CROSS_STAGE"/lib/clang/*/lib/darwin/libclang_rt.osx.a
 [ -f "$1" ] || { echo "FATAL: no compiler-rt builtins (lib/clang/*/lib/darwin/libclang_rt.osx.a) under $CROSS_STAGE" >&2; exit 1; }
 RECAULK_A="$CROSS_STAGE/lib/librecaulk.a"
@@ -46,7 +49,10 @@ rm -f "$OUT/libc++.1.dylib" "$OUT/libc++abi.1.dylib"
 
 echo "==> export lists"
 for lib in libc++abi libc++; do
-  mav_export_list "$RTDIR/$lib.a" > "$EXP/$lib.exp"
+  # llvm-nm warns "<archive>:<member>: no symbols" for each empty member (fstream.cpp.o, ...):
+  # expected, so it is dropped; anything else nm says still reaches the log.
+  mav_export_list "$RTDIR/$lib.a" > "$EXP/$lib.exp" 2> "$EXP/$lib.err" || { cat "$EXP/$lib.err" >&2; exit 1; }
+  grep -v ': no symbols$' "$EXP/$lib.err" >&2 || true
   [ -s "$EXP/$lib.exp" ] || { echo "FATAL: $RTDIR/$lib.a exports nothing" >&2; exit 1; }
   echo "    $lib.exp: $(wc -l < "$EXP/$lib.exp" | tr -d ' ') symbols"
 done

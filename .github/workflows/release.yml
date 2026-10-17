@@ -3,9 +3,9 @@ name: release
 # Both clang-22 variants, built on FREE standard macos runners. A push to main that brings a new LLVM
 # upstream auto-cuts <upstream>-mavericks.1; a tag publishes that tag; a local_release dispatch cuts the
 # next -mavericks.N; anything else builds without publishing. build-cross (the big build: clang+lld +
-# the x86_64/10.9 runtimes, which it also relinks and packages as libcxx22) hands its staged toolchain to build-native, which cross-HOSTS the x86_64/10.9
-# clang using it as the compiler. No 10.9 runner anywhere; the compat guards + emitted-binary smokes are
-# the in-CI equivalence proof.
+# the x86_64/10.9 runtimes, which it also relinks and packages as libcxx22) hands its staged
+# toolchain to build-native, which cross-HOSTS the x86_64/10.9 clang using it as the compiler. No
+# 10.9 runner anywhere; the compat guards + emitted-binary smokes are the in-CI equivalence proof.
 
 on:
   push:
@@ -164,10 +164,10 @@ jobs:
           # `sed 1d` drops otool's header line, which is the binary's OWN PATH -- grepping it too
           # makes the gate fail whenever the build directory happens to be named after the product
           # (it did, locally, under ~/.cache/mavericks-clang/work). Dependencies only.
-          otool -L "$MAVERICKS_BUILD_ROOT/clang-updater-cross/clang22-cross-updater.app/Contents/MacOS/clang22-cross-updater" > /tmp/o-all.txt
-          cat /tmp/o-all.txt
-          sed 1d /tmp/o-all.txt > /tmp/o.txt
-          ! grep -qiE 'usr/local/mavergreen/' /tmp/o.txt || { echo "::error::cross updater links a product tree"; exit 1; }
+          otool -L "$MAVERICKS_BUILD_ROOT/clang-updater-cross/clang22-cross-updater.app/Contents/MacOS/clang22-cross-updater" > "$RUNNER_TEMP/otool-cross-all.txt"
+          cat "$RUNNER_TEMP/otool-cross-all.txt"
+          sed 1d "$RUNNER_TEMP/otool-cross-all.txt" > "$RUNNER_TEMP/otool-cross.txt"
+          ! grep -qiE 'usr/local/mavergreen/' "$RUNNER_TEMP/otool-cross.txt" || { echo "::error::cross updater links a product tree"; exit 1; }
 
       - name: Package the cross .pkg + build-info
         run: UPD_APP="$MAVERICKS_BUILD_ROOT/clang-updater-cross/clang22-cross-updater.app" sh build/package-cross-pkg.sh
@@ -200,10 +200,10 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$SHIPYARD_SCRIPTS/../MavericksToolchain.cmake"
           shipyard-cmake --build "$MAVERICKS_BUILD_ROOT/clang-updater-libcxx" --target libcxx22-updater
           # sed 1d: otool's header line is the binary's own path, not a dependency -- see the cross updater.
-          otool -L "$MAVERICKS_BUILD_ROOT/clang-updater-libcxx/libcxx22-updater.app/Contents/MacOS/libcxx22-updater" > /tmp/o-all.txt
-          cat /tmp/o-all.txt
-          sed 1d /tmp/o-all.txt > /tmp/o.txt
-          ! grep -qiE 'usr/local/mavergreen/' /tmp/o.txt || { echo "::error::libcxx22 updater links a product tree"; exit 1; }
+          otool -L "$MAVERICKS_BUILD_ROOT/clang-updater-libcxx/libcxx22-updater.app/Contents/MacOS/libcxx22-updater" > "$RUNNER_TEMP/otool-libcxx-all.txt"
+          cat "$RUNNER_TEMP/otool-libcxx-all.txt"
+          sed 1d "$RUNNER_TEMP/otool-libcxx-all.txt" > "$RUNNER_TEMP/otool-libcxx.txt"
+          ! grep -qiE 'usr/local/mavergreen/' "$RUNNER_TEMP/otool-libcxx.txt" || { echo "::error::libcxx22 updater links a product tree"; exit 1; }
 
       - name: Package the libcxx22 .pkg + build-info
         run: UPD_APP="$MAVERICKS_BUILD_ROOT/clang-updater-libcxx/libcxx22-updater.app" sh build/package-libcxx-pkg.sh
@@ -331,10 +331,10 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$SHIPYARD_SCRIPTS/../MavericksToolchain.cmake"
           shipyard-cmake --build "$MAVERICKS_BUILD_ROOT/clang-updater" --target clang22-updater
           # sed 1d: otool's header line is the binary's own path, not a dependency -- see the cross job.
-          otool -L "$MAVERICKS_BUILD_ROOT/clang-updater/clang22-updater.app/Contents/MacOS/clang22-updater" > /tmp/o-all.txt
-          cat /tmp/o-all.txt
-          sed 1d /tmp/o-all.txt > /tmp/o.txt
-          ! grep -qiE 'usr/local/mavergreen/' /tmp/o.txt || { echo "::error::native updater links a product tree"; exit 1; }
+          otool -L "$MAVERICKS_BUILD_ROOT/clang-updater/clang22-updater.app/Contents/MacOS/clang22-updater" > "$RUNNER_TEMP/otool-native-all.txt"
+          cat "$RUNNER_TEMP/otool-native-all.txt"
+          sed 1d "$RUNNER_TEMP/otool-native-all.txt" > "$RUNNER_TEMP/otool-native.txt"
+          ! grep -qiE 'usr/local/mavergreen/' "$RUNNER_TEMP/otool-native.txt" || { echo "::error::native updater links a product tree"; exit 1; }
 
       - name: Package the native .pkg (10.9.5 floor) + build-info
         run: UPD_APP="$MAVERICKS_BUILD_ROOT/clang-updater/clang22-updater.app" sh build/package-native-pkg.sh
