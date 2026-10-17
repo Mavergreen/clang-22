@@ -27,12 +27,17 @@ set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/versions.sh"
 P="${1:?usage: verify-relocatable.sh <prefix>}"
+OTOOL="${OTOOL:-otool}"
 n=0; bad=0
 tmp="$(mktemp "${TMPDIR:-/tmp}/verify-relocatable.XXXXXX")"   # template: 10.9 BSD mktemp requires one
 # `|| true`: find exits non-zero when one of these dirs is absent, which under set -e would abort the
 # audit before it printed a thing -- a silent pass is the one outcome a gate must never have.
 find "$P/bin" "$P/lib" "$P/libexec" -type f 2>/dev/null > "$tmp" || true
 [ -s "$tmp" ] || { echo "FATAL: no files under $P/{bin,lib,libexec} -- nothing audited" >&2; exit 1; }
+# Each otool read is checked: an otool that cannot run would otherwise yield no paths for every image,
+# and the gate would pass everything while appearing to audit. (deps/id/lc: distinct on a
+# case-insensitive volume, where .L and .l are one file.)
+rd() { "$OTOOL" "$1" "$f" > "$tmp.$2" 2>&1 || { echo "FATAL: $OTOOL $1 failed on ${f#"$P"/}:" >&2; cat "$tmp.$2" >&2; rm -f "$tmp" "$tmp.deps" "$tmp.id" "$tmp.lc"; exit 1; }; }
 # Read from a FILE, not a pipeline: a `while … | read` runs in a subshell and would lose n/bad.
 while IFS= read -r f; do
   # Audit LINKED IMAGES only. A static archive must be excluded explicitly, not by accident: `file`
@@ -48,10 +53,8 @@ while IFS= read -r f; do
     *) continue ;;
   esac
   n=$((n+1))
-  paths="$(printf '%s\n%s\n%s\n' \
-    "$("${OTOOL:-otool}" -L "$f" 2>/dev/null | tail -n +2 | awk '{print $1}')" \
-    "$("${OTOOL:-otool}" -D "$f" 2>/dev/null | tail -n +2)" \
-    "$("${OTOOL:-otool}" -l "$f" 2>/dev/null | awk '/LC_RPATH/{r=1} r&&/ path /{print $2; r=0}')")"
+  rd -L deps; rd -D id; rd -l lc
+  paths="$(tail -n +2 "$tmp.deps" | awk '{print $1}'; tail -n +2 "$tmp.id"; awk '/LC_RPATH/{r=1} r&&/ path /{print $2; r=0}' "$tmp.lc")"
   hits=""
   for p in $paths; do
     case "$p" in
@@ -68,6 +71,6 @@ while IFS= read -r f; do
     printf '%s' "$hits" | sed "s#$WORK#<WORK>#g;s/^/    /"
   fi
 done < "$tmp"
-rm -f "$tmp"
+rm -f "$tmp" "$tmp.deps" "$tmp.id" "$tmp.lc"
 echo "checked $n Mach-O under $P: $bad with unshippable absolute paths"
 [ "$bad" -eq 0 ]

@@ -50,6 +50,8 @@ $deps" ;;
   esac
 
   "$OTOOL" -l "$d" > "$T/lc" || fail "$OTOOL -l $d"
+  # The two greps below pass on empty input, so first prove otool printed the load commands.
+  grep -q 'LC_ID_DYLIB' "$T/lc" || fail "$OTOOL -l $d printed no LC_ID_DYLIB, so no load commands were read"
   if grep -q LC_RPATH "$T/lc"; then fail "$lib has an LC_RPATH"; fi
   if grep -E '@rpath|libunwind' "$T/lc"; then fail "$lib names @rpath or libunwind in a load command"; fi
 

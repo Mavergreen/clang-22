@@ -9,7 +9,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$HERE/.."
 W="$ROOT/.github/workflows/release.yml"
 
 res="$(awk '
-  function mark(k) { if (!(k in at)) at[k] = NR }
+  # Every piece is counted, not only located: a second copy of one (a stray relink after the upload,
+  # say) would otherwise pass, since the order check sees only the first.
+  function mark(k) { cnt[k]++; if (!(k in at)) at[k] = NR }
   /^  [a-z][a-z-]*:$/ { job = $1; sub(/:$/, "", job); up = 0; next }
   /^      - / { up = 0 }
   job == "build-cross" {
@@ -30,7 +32,8 @@ res="$(awk '
     if (up && $0 ~ /^ *dist\/build-info-libcxx\.txt$/) mark("upinfo")
   }
   job == "collect" {
-    if ($0 ~ /name: variant-libcxx/ && $0 ~ /download|path: dist/) mark("download")
+    if ($0 ~ /^ *- uses: actions\/download-artifact@/) downloading = NR
+    if ($0 ~ /^ *with: \{ name: variant-libcxx, path: dist \}$/ && downloading && NR - downloading == 1) mark("download")
     if ($0 ~ /--product libcxx22( |$)/) mark("sign")
     if ($0 ~ /for a in .*libcxx22\.xml/) mark("loop")
     if ($0 ~ /^ *dist\/libcxx22\*\.xml$/) mark("combined")
@@ -38,10 +41,12 @@ res="$(awk '
   END {
     n = split("cross smoke relink shape runtime configure target otool sed1d grep package upload uppkg upinfo", seq, " ")
     for (i = 1; i <= n; i++) if (!(seq[i] in at)) { print "missing build-cross piece: " seq[i]; exit }
+    for (i = 1; i <= n; i++) if (cnt[seq[i]] > 1) { print "build-cross piece appears " cnt[seq[i]] " times: " seq[i]; exit }
     m = split("cross smoke relink shape runtime configure target otool sed1d grep package upload", ord, " ")
     for (i = 2; i <= m; i++) if (at[ord[i]] <= at[ord[i-1]]) { print "out of order: " ord[i] " must follow " ord[i-1]; exit }
     k = split("download sign loop combined", cs, " ")
     for (i = 1; i <= k; i++) if (!(cs[i] in at)) { print "missing collect piece: " cs[i]; exit }
+    for (i = 1; i <= k; i++) if (cnt[cs[i]] > 1) { print "collect piece appears " cnt[cs[i]] " times: " cs[i]; exit }
     print "ok"
   }' "$W")"
 [ "$res" = ok ] || { echo "FAIL: release.yml libcxx22 wiring: $res"; exit 1; }

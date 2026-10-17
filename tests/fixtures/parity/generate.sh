@@ -16,27 +16,39 @@ RECAULK_VERSION="$(tr -d ' \t\r\n' < "$REPO_ROOT/components/recaulk/version")"
 mkdir -p "$OUT"
 T="$(mktemp -d "${TMPDIR:-/tmp}/parity-gen.XXXXXX")"; trap 'rm -rf "$T"' EXIT
 
-# Defined names of an archive, with one trailing .eh removed, as a sorted set.
-defs() { "$NM" -gUj "$1" 2>/dev/null | grep -v ':$' | grep -v '^$' | sed 's/\.eh$//' | LC_ALL=C sort -u; }
-defs "$RECAULK_A" > "$T/recaulk"
-defs "$RT_A" > "$T/builtins"
+# nm writes to a FILE, never the left of a pipe, so a failing nm fails the generator instead of
+# yielding a short list; and an empty result fails too, since every input defines names.
+nm_defs() {  # $1 Mach-O, $2 out: its defined external names, one per line, as nm prints them
+  "$NM" -gUj "$1" > "$2" 2> "$T/nm.err" || { echo "generate.sh: $NM -gUj $1 failed:" >&2; cat "$T/nm.err" >&2; exit 1; }
+}
+nonempty() { [ -s "$1" ] || { echo "generate.sh: no defined names read from $2" >&2; exit 1; }; }
+# Defined names of an archive (member headers and blank lines dropped, one trailing .eh removed), as a
+# sorted set.
+defs() {  # $1 archive, $2 out
+  nm_defs "$1" "$T/nm.out"
+  grep -v ':$' "$T/nm.out" | grep -v '^$' | sed 's/\.eh$//' | LC_ALL=C sort -u > "$2"
+  nonempty "$2" "$1"
+}
+defs "$RECAULK_A" "$T/recaulk"
+defs "$RT_A" "$T/builtins"
 
-: > "$T/excluded"
 for lib in "$CXX" "$ABI"; do
   b="$(basename "$lib" .dylib)"
-  "$NM" -gUj "$lib" | LC_ALL=C sort -u > "$T/$b.all"
-  sed 's/\.eh$//' "$T/$b.all" | LC_ALL=C sort -u > "$T/$b.stripped"
+  nm_defs "$lib" "$T/$b.nm"
+  LC_ALL=C sort -u "$T/$b.nm" > "$T/$b.all"
+  nonempty "$T/$b.all" "$lib"
   # Reason by name: recaulk wins over builtins when both define it.
   while IFS= read -r n; do
     s="${n%.eh}"
     if grep -qxF -- "$s" "$T/recaulk"; then echo "$n recaulk"
     elif grep -qxF -- "$s" "$T/builtins"; then echo "$n builtins"
     fi
-  done < "$T/$b.all" >> "$T/excluded"
-  awk '{print $1}' "$T/excluded" | LC_ALL=C sort -u > "$T/ex.names"
-  LC_ALL=C comm -23 "$T/$b.all" "$T/ex.names" > "$OUT/$b.exports"
+  done < "$T/$b.all" > "$T/$b.excluded"
+  # This library's own exclusions only.
+  awk '{print $1}' "$T/$b.excluded" | LC_ALL=C sort -u > "$T/$b.ex.names"
+  LC_ALL=C comm -23 "$T/$b.all" "$T/$b.ex.names" > "$OUT/$b.exports"
 done
-LC_ALL=C sort -u "$T/excluded" > "$OUT/excluded.txt"
+cat "$T/$(basename "$CXX" .dylib).excluded" "$T/$(basename "$ABI" .dylib).excluded" | LC_ALL=C sort -u > "$OUT/excluded.txt"
 {
   echo "libc++.1.dylib sha256 $CXX_SHA"
   echo "libc++abi.1.dylib sha256 $ABI_SHA"
