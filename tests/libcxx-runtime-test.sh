@@ -10,6 +10,11 @@
 #              default $WORK/stage$CROSS_PREFIX
 #   LIBCXX_LIB directory holding libc++.1.dylib and libc++abi.1.dylib, default $LIBCXX_STAGE/lib.
 #              When it is $LIBCXX_PREFIX/lib (an installed product) no DYLD_* is set at all.
+#
+# The installed-layout check: on a 10.9 box with clang22 and libcxx22 installed,
+#   TC=/usr/local/mavergreen/clang22 LIBCXX_LIB=/usr/local/mavergreen/libcxx22/lib sh tests/libcxx-runtime-test.sh
+# links with no -syslibroot at all, so it proves lld resolves libc++'s re-export of libc++abi by its
+# absolute install name, outside the -isysroot SDK, and that the program runs with no DYLD_*.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
 . "$ROOT/build/versions.sh"
@@ -85,12 +90,15 @@ echo "==> can this host execute x86_64?"
 if [ "$(uname -m)" != x86_64 ]; then
   softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1 || true
 fi
+# SKIP only when this host has no way to run x86_64 at all (no Rosetta). Where it can, a probe that
+# will not run is a broken product, so it fails.
+if [ "$(uname -m)" != x86_64 ] && ! arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+  echo "    SKIP: cannot execute an x86_64/10.9 binary here (no Rosetta)"; exit 77
+fi
 printf 'int main(void){return 0;}\n' > "$t/probe.c"
 "$TC/bin/clang" --no-default-config --target="$TARGET_TRIPLE" -isysroot "$SDK" -mmacosx-version-min="$MACOS_MIN" \
   -fuse-ld=lld "$t/probe.c" -o "$t/probe" || { echo "FAIL: cannot compile the probe" >&2; exit 1; }
-if ! "$t/probe" >/dev/null 2>&1; then
-  echo "    SKIP: cannot execute an x86_64/10.9 binary here (no Rosetta)"; exit 77
-fi
+"$t/probe" >/dev/null 2>&1 || { echo "FAIL: this host runs x86_64, but not the x86_64/10.9 probe" >&2; exit 1; }
 
 echo "==> run"
 run "$t/runtime" > "$t/out" 2> "$t/err" || { echo "FAIL: the program exited non-zero" >&2; cat "$t/out" "$t/err" >&2; exit 1; }
@@ -109,9 +117,10 @@ run DYLD_PRINT_LIBRARIES=1 "$t/runtime" > /dev/null 2> "$t/libs" || { echo "FAIL
 for l in libc++.1.dylib libc++abi.1.dylib; do
   # dyld may print the directory normalized (no ".." components) or physical, so accept LIBCXX_LIB as given (10.9 dyld keeps
   # "..") and its logical and physical canonical spellings; fixed-string suffix match, dots are not wildcards.
+  # The path goes in through ENVIRON, not awk -v, which would interpret backslash escapes in it.
   ok=""
   for d in "$LIBCXX_LIB" "$(cd "$LIBCXX_LIB" && pwd)" "$(cd "$LIBCXX_LIB" && pwd -P)"; do
-    awk -v p="$d/$l" '{ n = length($0) - length(p) + 1; if (n > 1 && substr($0, n) == p && substr($0, n - 1, 1) ~ /[ :]/) f = 1 } END { exit !f }' "$t/libs" && ok=1
+    p="$d/$l" awk '{ p = ENVIRON["p"]; n = length($0) - length(p) + 1; if (n > 1 && substr($0, n) == p && substr($0, n - 1, 1) ~ /[ :]/) f = 1 } END { exit !f }' "$t/libs" && ok=1
   done
   [ -n "$ok" ] \
     || { echo "FAIL: $l not loaded from $LIBCXX_LIB" >&2; cat "$t/libs" >&2; exit 1; }
