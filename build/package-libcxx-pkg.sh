@@ -14,7 +14,10 @@ STAGE="$LIBCXX_STAGE"
   || { echo "FATAL: run build-libcxx.sh first" >&2; exit 1; }
 VER="$(sh "$SHIPYARD_SCRIPTS/resolve-version.sh" "$(sh "$SHIPYARD_SCRIPTS/release-mode.sh")")"
 DIST="${DIST:-$HERE/../dist}"; mkdir -p "$DIST"
-PAYLOAD="$WORK/stage-libcxx"
+# The payload root is the stage minus the install prefix, so the guard above and the payload always
+# name the same tree, wherever LIBCXX_STAGE points.
+PAYLOAD="${STAGE%"$LIBCXX_PREFIX"}"
+[ "$PAYLOAD$LIBCXX_PREFIX" = "$STAGE" ] || { echo "FATAL: LIBCXX_STAGE '$STAGE' does not end in $LIBCXX_PREFIX" >&2; exit 1; }
 NAME="libcxx${CLANG_LINE}-$VER.pkg"
 # Assemble on LOCAL disk and move the finished artifact into dist/ (see package-native-pkg.sh).
 OUTDIR="$WORK/out"; mkdir -p "$OUTDIR"

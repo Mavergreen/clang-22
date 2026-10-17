@@ -21,9 +21,11 @@ sh "$R/build/package-native-pkg.sh" > "$W/native.log" 2>&1 || { cat "$W/native.l
 sh "$R/build/package-cross-pkg.sh" > "$W/cross.log" 2>&1 || { cat "$W/cross.log"; fail "the cross archive must package from a staged tree"; }
 L="libcxx$CLANG_LINE"
 mk_lib() { mkdir -p "$(dirname "$1")"; printf 'placeholder\n' > "$1"; }
-mk_lib "$WORK/stage-libcxx$LIBCXX_PREFIX/lib/libc++.1.dylib"
-mk_lib "$WORK/stage-libcxx$LIBCXX_PREFIX/lib/libc++abi.1.dylib"
-sh "$R/build/package-libcxx-pkg.sh" > "$W/libcxx.log" 2>&1 || { cat "$W/libcxx.log"; fail "the libcxx archive must package from a staged tree"; }
+# Staged somewhere other than the default: the pkg must carry what LIBCXX_STAGE names, not $WORK/stage-libcxx.
+LS="$W/elsewhere$LIBCXX_PREFIX"
+mk_lib "$LS/lib/libc++.1.dylib"
+mk_lib "$LS/lib/libc++abi.1.dylib"
+LIBCXX_STAGE="$LS" sh "$R/build/package-libcxx-pkg.sh" > "$W/libcxx.log" 2>&1 || { cat "$W/libcxx.log"; fail "the libcxx archive must package from a staged tree"; }
 VER="$(ls "$DIST"/mavericks-clang-*-native-*.pkg | sed -n "s|.*/mavericks-clang-$CLANG_LINE-native-\(.*\)\.pkg|\1|p")"
 [ -f "$DIST/$L-$VER.pkg" ] || fail "no $L-$VER.pkg in dist"
 [ "$(ls "$DIST"/libcxx*.pkg | wc -l | tr -d ' ')" = 1 ] || fail "$L-$VER.pkg is the only libcxx pkg"
@@ -33,6 +35,9 @@ LX="$W/x-libcxx"; pkgutil --expand "$DIST/$L-$VER.pkg" "$LX"
 grep -q 'os-version min="10.9.5"' "$LX/Distribution" || fail "$L: the floor is 10.9.5"
 LV="$W/vol-libcxx"; mkdir -p "$LV"
 for comp in "$LX"/*.pkg; do (cd "$LV" && gzip -dc "$comp/Payload" | cpio -id --quiet); done
+for d in libc++.1.dylib libc++abi.1.dylib; do
+  cmp -s "$LS/lib/$d" "$LV$LIBCXX_PREFIX/lib/$d" || fail "$L's payload carries the staged lib/$d"
+done
 lpb() { /usr/libexec/PlistBuddy -c "Print :$1" "$LV/usr/local/mavergreen/$L/mavergreen.plist"; }
 [ "$(lpb group)/$(lpb line)/$(lpb identifier)" = "libcxx/$CLANG_LINE/$LIBCXX_IDENTIFIER" ] \
   || fail "$L manifest: group libcxx, line $CLANG_LINE, identifier $LIBCXX_IDENTIFIER"
