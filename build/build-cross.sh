@@ -246,6 +246,8 @@ printf '%s\n' \
 # dylib) plus a portable-ld wrapper that appends the three .a at the END of the link line. A static
 # archive supplies only what is still undefined when reached, so a normal program gets the whole STL
 # while a program bundling its own libc++ resolves that first and gets no duplicate-symbol error.
+# -dead_strip_dylibs, as in clang.cfg, drops whichever of libobjc and the three frameworks (there for
+# librecaulk's members) a program does not use, so plain C++ depends on libSystem alone.
 printf '%s\n' \
   "--target=$TARGET_TRIPLE" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
@@ -253,6 +255,7 @@ printf '%s\n' \
   '-isystem <CFGDIR>/../include/mavericks-compat' \
   '-isystem <CFGDIR>/../include/recaulk' \
   '-nostdlib++' \
+  '-Wl,-dead_strip_dylibs' \
   '-Wl,-U,__availability_version_check' \
   '<CFGDIR>/../lib/librecaulk.a' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \

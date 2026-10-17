@@ -30,6 +30,11 @@ int main(){ std::cout << "hello mavericks\n"; return 0; }
 EOF
 "$CLANGXX" "$t/hello.cpp" -o "$t/hello"
 lipo -info "$t/hello" | sed -n 's/.*: //p' | grep -qw x86_64 || { echo "FAIL: not x86_64"; exit 1; }
+# clang++.cfg links libobjc and three frameworks for librecaulk's members; -dead_strip_dylibs must
+# drop every one hello does not use, as clang.cfg does for C, so it depends on libSystem alone.
+OTOOL="$STAGE/bin/llvm-otool"; [ -x "$OTOOL" ] || OTOOL=otool
+deps="$("$OTOOL" -L "$t/hello" | sed 1d | awk '{print $1}')"
+[ "$deps" = /usr/lib/libSystem.B.dylib ] || { echo "FAIL: hello links more than libSystem:"; echo "$deps"; exit 1; }
 
 # The compat guard: assert the emitted binary is 10.9-safe. Do NOT point it at the arm64 host clang --
 # it asserts arch x86_64 by design and would fail for the wrong reason.
