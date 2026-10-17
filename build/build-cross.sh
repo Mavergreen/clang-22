@@ -182,9 +182,9 @@ cp "$RECAULK_A" "$STAGE/lib/"
 rm -rf "$STAGE/include/recaulk"; cp -R "$RECAULK_INC/recaulk" "$STAGE/include/"
 # Our own tracked back-fill overlay (today only pthread/qos.h), kept OUT of the vendored recaulk/
 # tree so that stays a verbatim copy of upstream. Shipped, not runtimes-build-only, because USER code
-# includes <pthread/qos.h> too: QoS is a 10.10 feature the 10.9 SDK lacks (not an SDK defect), and
-# Recaulk's copy of the header declares no qos_class_self/qos_class_main, which this overlay adds
-# (see build/shim/include/pthread/qos.h).
+# includes <pthread/qos.h> too: QoS is a 10.10 feature the 10.9 SDK lacks (not an SDK defect). It
+# hands off to Recaulk's copy, which declares the whole API, and keeps a fallback for a search path
+# without Recaulk's headers (see build/shim/include/pthread/qos.h).
 rm -rf "$STAGE/include/mavericks-compat"; cp -R "$HERE/shim/include" "$STAGE/include/mavericks-compat"
 
 # Where LLVM actually put the x86_64/10.9 C++ runtime. DISCOVERED, not assumed: LLVM lays per-target
