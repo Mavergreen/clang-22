@@ -114,3 +114,15 @@ Machine-read by `artifact-facts.sh` as `- <check>:<glob> : <reason>` (one line e
   Both toolchains' `SDKs` is a link to `../sdk109/SDKs`, which Longboat's `sdk109` fills
   (`sudo longboat install 10.9`), and both pkgs refuse to install without Longboat. Without `sdk109`
   the first compile fails naming the missing `SDKs/MacOSX10.9.sdk`.
+- **No build on 10.9 yet** — the family requires a product's build to run natively on a Mavericks box;
+  this repo's does not. `build/build-cross.sh` builds the arm64-hosted cross variant, which needs a
+  modern host by nature. `build/build-native.sh` is the one that could run on 10.9 but does not: it
+  cross-hosts the native variant on the arm64 runner, using the cross stage it just built as its
+  compiler. The capability is proven, not hoped for: on 2026-08-04 the shipped native clang-22 built
+  clang+lld 22.1.1 from source on a real 10.9.5 box (about 53 minutes on 12 cores), and on 2026-10-18
+  the installed clang22 built this repo's patched 22.1.8 `ld64.lld` there, which passed
+  `tests/tbd-arch-test.sh`. What is missing is the recipe: a native mode of `build-native.sh` (the
+  installed clang22 as compiler, the 10.9 SDK, shipyard-cmake and ninja from the installed pkgs) that
+  produces the same staged, relocatable toolchain and passes the same gates. `native-bootstrap/` is
+  not that path: it is Wowfunhappy's original climb from Apple's clang-3.5 seed,
+  kept for history. Ends when that native mode exists and is checked against a CI build.
