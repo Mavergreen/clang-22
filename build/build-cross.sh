@@ -42,17 +42,8 @@ gpg --batch --quiet --verify "$tb.sig" "$tb" || { echo "FATAL: LLVM source signa
 rm -rf "$SRC"; tar -xf "$tb" -C "$WORK"
 [ -d "$SRC/llvm" ] || { echo "FATAL: tarball did not unpack to $SRC" >&2; exit 1; }
 # patches/: upstream LLVM fixes this version lacks, each rebased onto it and naming its upstream
-# commit in its header. -F 0 because a rebased patch needs no fuzz: one that no longer applies cleanly
-# means UPSTREAM_VERSION moved, and the patch is to be dropped (upstream has it) or rebased, not
-# applied approximately. -t never prompts, and -N stops it from then taking an already-applied patch
-# as a reversed one and silently undoing it. build-native.sh builds this same tree, so both
-# toolchains carry them.
-for p in "$HERE/../patches"/*.patch; do
-  [ -f "$p" ] || continue
-  echo "applying ${p##*/}"
-  (cd "$SRC" && patch -p1 -F 0 -N -t -s -V none < "$p") \
-    || { echo "FATAL: ${p##*/} does not apply cleanly to LLVM $LLVM_VERSION" >&2; exit 1; }
-done
+# commit in its header. build-native.sh applies them too, for the tree it may unpack itself.
+mav_apply_patches "$SRC" "$REPO_ROOT/patches" || exit 1
 # The one edit besides patches/; "THE BUILTINS ARE x86_64/10.9 ONLY" in step 3 says why.
 mav_pin_builtins_min_ver "$SRC/compiler-rt/cmake/builtin-config-ix.cmake" "$MACOS_MIN" \
   || { echo "FATAL: could not pin the compiler-rt builtins' macOS minimum to $MACOS_MIN" >&2; exit 1; }

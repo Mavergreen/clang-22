@@ -21,6 +21,8 @@ CROSS_STAGE="$WORK/stage$CROSS_PREFIX"
 [ -x "$CROSS_STAGE/bin/clang" ] || { echo "FATAL: run build-cross.sh first (need $CROSS_STAGE/bin/clang)" >&2; exit 1; }
 SRC="$WORK/llvm-project-$LLVM_VERSION.src"
 [ -d "$SRC/llvm" ] || { echo "FATAL: LLVM source missing at $SRC (run build-cross.sh)" >&2; exit 1; }
+# A no-op on the tree build-cross.sh patched; CI's native job unpacks a pristine one, which it patches.
+mav_apply_patches "$SRC" "$REPO_ROOT/patches" || exit 1
 
 echo "==> 1. make the cross clang usable as a compiler (populate its first-use SDK symlink)"
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"; export SDK

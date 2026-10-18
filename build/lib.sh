@@ -50,6 +50,30 @@ mavericks_build_jobs() {
 # plain set(), which shadows a -D cache value, so no configure flag can move it. Fails, and leaves the
 # file alone, unless that upstream line is there exactly once -- an LLVM that moves or changes it must
 # stop the build, not quietly ship 10.7 builtins again.
+# Apply every PATCHDIR/*.patch to the unpacked LLVM tree SRC, once. Both build scripts call this: CI's
+# build-native job unpacks its own pristine copy of the tarball, while locally build-native.sh reuses
+# the tree build-cross.sh already patched. SRC/.mavergreen-patches records the SHA-256 of each patch
+# applied, so a second call with the same set does nothing and one with a different set is refused:
+# that tree must be unpacked afresh. -F 0 because each patch is rebased onto the pinned version, so
+# one that needs fuzz means UPSTREAM_VERSION moved and the patch is to be dropped or rebased; -t never
+# prompts, and -N stops patch from taking an applied patch as a reversed one and undoing it.
+mav_apply_patches() {  # $1 SRC, $2 PATCHDIR
+  _ap_want="$(cd "$2" && for _ap_p in *.patch; do [ -f "$_ap_p" ] && shasum -a 256 "$_ap_p"; done)" \
+    || { echo "mav_apply_patches: cannot read $2" >&2; return 1; }
+  if [ -f "$1/.mavergreen-patches" ]; then
+    [ "$(cat "$1/.mavergreen-patches")" = "$_ap_want" ] && { echo "patches already applied to $1"; return 0; }
+    echo "mav_apply_patches: $1 was patched with a different set than $2 holds; unpack it afresh" >&2
+    return 1
+  fi
+  for _ap_p in "$2"/*.patch; do
+    [ -f "$_ap_p" ] || continue
+    echo "applying ${_ap_p##*/}"
+    (cd "$1" && patch -p1 -F 0 -N -t -s -V none < "$_ap_p") \
+      || { echo "mav_apply_patches: ${_ap_p##*/} does not apply cleanly to $1" >&2; return 1; }
+  done
+  printf '%s\n' "$_ap_want" > "$1/.mavergreen-patches"
+}
+
 mav_pin_builtins_min_ver() {  # $1 builtin-config-ix.cmake, $2 version
   case "$2" in
     ''|*[!0-9.]*) echo "mav_pin_builtins_min_ver: '$2' is not a version" >&2; return 1 ;;
