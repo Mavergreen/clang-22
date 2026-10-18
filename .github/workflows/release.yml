@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/Library/Caches/ccache
-          key: ccache-${{ runner.os }}-cross-${{ hashFiles('UPSTREAM_VERSION','build/build-cross.sh','build/versions.sh') }}
+          key: ccache-${{ runner.os }}-cross-${{ hashFiles('UPSTREAM_VERSION','build/build-cross.sh','build/versions.sh','patches/**') }}
           restore-keys: ccache-${{ runner.os }}-cross-
 
       - name: Run the repo's tests + guard ingredient pins
@@ -125,7 +125,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ~/Library/Caches/ccache
-          key: ccache-${{ runner.os }}-cross-${{ hashFiles('UPSTREAM_VERSION','build/build-cross.sh','build/versions.sh') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ccache-${{ runner.os }}-cross-${{ hashFiles('UPSTREAM_VERSION','build/build-cross.sh','build/versions.sh','patches/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # A defence-in-depth guard: build-cross.sh runs under `set -e`, so a failed build already fails
       # the job, but this turns a subtly-empty stage into a clear message before the later steps.
@@ -144,6 +144,10 @@ jobs:
 
       - name: Compat gate + emitted-binary smoke
         run: sh tests/smoke-target.sh
+
+      # macOS 27's SDK stubs list arm64e.x1, which unpatched 22.1.8 cannot read (patches/0001).
+      - name: ld64.lld reads .tbd stubs that list arm64e.x1
+        run: sh tests/tbd-arch-test.sh
 
       # Exit 77 (cannot execute x86_64) fails this step on purpose: see the test's header.
       - name: Coverage works (profile runtime links, runs, reads back)
@@ -293,7 +297,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/Library/Caches/ccache
-          key: ccache-${{ runner.os }}-native-${{ hashFiles('UPSTREAM_VERSION','build/build-native.sh','build/versions.sh') }}
+          key: ccache-${{ runner.os }}-native-${{ hashFiles('UPSTREAM_VERSION','build/build-native.sh','build/versions.sh','patches/**') }}
           restore-keys: ccache-${{ runner.os }}-native-
 
       - name: Cross-host the native toolchain (x86_64/10.9)
@@ -319,6 +323,13 @@ jobs:
           set -eu
           REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
           TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/profile-runtime-test.sh
+
+      # Same check as the cross job's, on the native ld64.lld (x86_64, so under Rosetta here).
+      - name: Native ld64.lld reads .tbd stubs that list arm64e.x1
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/tbd-arch-test.sh
 
       # x86_64/min-10.9, because this updater RUNS on the 10.9 box it updates. Built by the runner's
       # Apple clang against the modern SDK -- Cocoa/Sparkle only, so it needs none of the 10.9 SDK

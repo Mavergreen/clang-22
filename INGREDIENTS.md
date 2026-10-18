@@ -19,14 +19,21 @@ Not ingredients: `build/*.sh` and `native-bootstrap/` are this repo's own recipe
 repackage you cut deliberately (`workflow_dispatch` with `local_release=true`), not something Renovate
 drives.
 
-Shipped shim (`build/shim/` → `include/mavericks-compat/` in the toolchain): hand-authored back-fill
-header `pthread/qos.h`, which adds the `qos_class_self`/`qos_class_main` that Recaulk's own
-`pthread/qos.h` does not declare (LLVM's `Threading.inc` includes it; so may user code). Its sibling
-`build/shim/aligned_alloc.h` is force-included into the runtimes build only and is not shipped. The
-shim is our own source, not an external input, so
-there is nothing for Renovate to pin or track — but unlike `build/*.sh` it is **baked into the
-artifact** (`clang.cfg` references it via `-isystem`), so it is recorded here for anyone auditing what
-the shipped toolchain contains. A change to it is a deliberate repackage, like a patch.
+Shipped shim (`build/shim/` → `include/mavericks-compat/` in the toolchain): hand-authored header
+`pthread/qos.h`, which hands off to Recaulk's own `<pthread/qos.h>` (it declares everything since
+Recaulk 20261017.1) and declares the type and setter itself only when Recaulk's include dir is absent.
+Its sibling `build/shim/aligned_alloc.h` is force-included into the runtimes build only and is not
+shipped. The shim is our own source, not an external input, so there is nothing for Renovate to pin
+or track — but unlike `build/*.sh` it is **baked into the artifact** (`clang.cfg` references it via
+`-isystem`), so it is recorded here for anyone auditing what the shipped toolchain contains. A change
+to it is a deliberate repackage, like a patch.
+
+Patches (`patches/*.patch`, applied by `build/build-cross.sh` to the GPG-verified source, which
+`build/build-native.sh` builds too): upstream LLVM fixes the pinned version lacks, each rebased onto it
+and naming its upstream commit in its header. Today one: `0001-arm64e-x1-tbd.patch`, so ld64.lld reads
+macOS 27's SDK stubs. They apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
+build by name; drop a patch once the new version carries its commit. A change here is a deliberate
+repackage.
 
 ## Why no source checksum is pinned for LLVM
 
