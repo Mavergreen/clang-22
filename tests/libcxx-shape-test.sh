@@ -65,6 +65,10 @@ $deps"
   [ -z "$own" ] || fail "$lib defines C++ ABI machinery of its own:
 $own"
 
+  # Extension-safe, as Apple's libc++ is, so an app extension or an extension-safe library (libswiftCore
+  # links -application_extension) may link it on a macOS that has extensions, without a warning.
+  "$OTOOL" -hv "$d" > "$T/hv" || fail "$OTOOL -hv $d"
+  grep -q 'APP_EXTENSION_SAFE' "$T/hv" || fail "$lib is not marked MH_APP_EXTENSION_SAFE"
   "$OTOOL" -l "$d" > "$T/lc" || fail "$OTOOL -l $d"
   # The two greps below pass on empty input, so first prove otool printed the load commands.
   grep -q 'LC_ID_DYLIB' "$T/lc" || fail "$OTOOL -l $d printed no LC_ID_DYLIB, so no load commands were read"
