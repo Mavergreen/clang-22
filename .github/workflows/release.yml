@@ -538,6 +538,9 @@ jobs:
             export SHIPYARD_SCRIPTS="$PWD/.shipyard-scripts"
             must() { status=0; "$@" || status=$?; [ "$status" -eq 0 ] || { echo "$* exited $status (77, a skip, is a failure here)"; exit 1; }; }
             I=/usr/local/mavergreen
+            # No Command Line Tools here, so otool, nm, lipo and strings are stubs: the tests take
+            # clang22's, which give the same answers (as the compat guard documents).
+            export NM=$I/clang22/bin/llvm-nm OTOOL=$I/clang22/bin/llvm-otool LIPO=$I/clang22/bin/llvm-lipo STRINGS=$I/clang22/bin/llvm-strings
             must env TC=$I/clang22 LIBCXX_LIB=$I/libcxx22/lib sh tests/cxxabi-interop-test.sh
             must env TC=$I/clang22 sh tests/weak-bind-order-test.sh
             must env TC=$I/clang22 LIBCXX_LIB=$I/libcxx22/lib sh tests/libcxx-runtime-test.sh
