@@ -18,6 +18,11 @@
 #                             each in by name): those are names his libc++abi.1.dylib exported, so a
 #                             program bound to it looks for them here.
 #   -exported_symbols_list    each dylib's own interface and nothing else.
+#   -application_extension    marks both MH_APP_EXTENSION_SAFE, as Apple's libc++ is, so an extension or
+#                             an extension-safe library (libswiftCore) links them on a macOS that has
+#                             extensions without a warning; libc++ calls no extension-unavailable API.
+#                             lld warns that 10.9's own libraries are not so marked: they predate
+#                             extensions (10.10), so the warning is expected and harmless.
 #   -reexport_library         libc++ re-exports libc++abi.1, as Apple's and Wowfunhappy's do, and
 #   -reexport-lc++abi         both re-export the system's /usr/lib/libc++abi.dylib, libc++ directly
 #                             too, so its one C++ ABI is visible in its own load commands.
@@ -71,7 +76,7 @@ set --
 while read -r sym; do set -- "$@" "-Wl,-u,$sym"; done < "$EXP/libc++abi.exp"
 
 echo "==> link"
-LINK="--no-default-config --target=$TARGET_TRIPLE -isysroot $SDK -mmacosx-version-min=$MACOS_MIN -fuse-ld=lld -dynamiclib -compatibility_version 1.0.0 -current_version 1.0.0"
+LINK="--no-default-config --target=$TARGET_TRIPLE -isysroot $SDK -mmacosx-version-min=$MACOS_MIN -fuse-ld=lld -dynamiclib -compatibility_version 1.0.0 -current_version 1.0.0 -Wl,-application_extension"
 "$CC" $LINK -install_name "$LIBCXX_PREFIX/lib/libc++abi.1.dylib" \
   -Wl,-reexport-lc++abi "$@" "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++abi.exp" -o "$OUT/libc++abi.1.dylib"
