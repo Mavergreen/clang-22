@@ -56,16 +56,13 @@ RUN_DYLIB=""
 if [ "$LIBCXX_LIB" != "$LIBCXX_PREFIX/lib" ] && [ -e "$LIBCXX_PREFIX/lib/libc++.1.dylib" ]; then
   echo "note: libcxx22 is installed at $LIBCXX_PREFIX, which dyld would load instead of $LIBCXX_LIB -- the dylib shape is not checked"
 elif [ -f "$LIBCXX_LIB/libc++.1.dylib" ] && [ -f "$LIBCXX_LIB/libc++abi.1.dylib" ]; then
-  # As tests/libcxx-runtime-test.sh: a staged libcxx22 is reached through a -syslibroot and, at run
-  # time, DYLD_FALLBACK_LIBRARY_PATH; an installed one needs neither.
-  ROOTFLAG=""
-  if [ "$LIBCXX_LIB" != "$LIBCXX_PREFIX/lib" ]; then
-    mkdir -p "$t/root$LIBCXX_PREFIX"; ln -s "$LIBCXX_LIB" "$t/root$LIBCXX_PREFIX/lib"
-    ROOTFLAG="-Wl,-syslibroot,$t/root"; RUN_DYLIB="DYLD_FALLBACK_LIBRARY_PATH=$LIBCXX_LIB"
-  fi
+  # As tests/libcxx-runtime-test.sh: a staged libcxx22 links where it is (its re-export is by
+  # @loader_path) and is reached at run time through DYLD_FALLBACK_LIBRARY_PATH; an installed one needs
+  # neither.
+  [ "$LIBCXX_LIB" = "$LIBCXX_PREFIX/lib" ] || RUN_DYLIB="DYLD_FALLBACK_LIBRARY_PATH=$LIBCXX_LIB"
   "$TC/bin/clang++" --no-default-config $F -nostdinc++ -isystem "$TC/include/c++/v1" \
     -isystem "$TC/include/mavericks-compat" -isystem "$TC/include/recaulk" $OURS -o "$t/interop-dylib" \
-    -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" $ROOTFLAG "$TC/lib/librecaulk.a" -lobjc \
+    -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" "$TC/lib/librecaulk.a" -lobjc \
     || { echo "FAIL: could not build interop.mm against libcxx22"; exit 1; }
   shapes="static dylib"
 else

@@ -13,8 +13,9 @@
 #
 # The installed-layout check: on a 10.9 box with clang22 and libcxx22 installed,
 #   TC=/usr/local/mavergreen/clang22 LIBCXX_LIB=/usr/local/mavergreen/libcxx22/lib sh tests/libcxx-runtime-test.sh
-# links with no -syslibroot at all, so it proves lld resolves libc++'s re-export of libc++abi by its
-# absolute install name, outside the -isysroot SDK, and that the program runs with no DYLD_*.
+# proves the program runs with no DYLD_*. Every run links with no -syslibroot of its own: libc++
+# re-exports libc++abi.1 as @loader_path/libc++abi.1.dylib, which lld resolves beside libc++ wherever it
+# is, so a staged or fetched libcxx22 links as an installed one does (shipyard QUEUE #86).
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
 . "$ROOT/build/versions.sh"
@@ -36,19 +37,12 @@ SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
 
 t="$(mktemp -d "${TMPDIR:-/tmp}/libcxx-runtime.XXXXXX")"; trap 'rm -rf "$t"' EXIT   # template: 10.9 BSD mktemp requires one
 
-# libc++ re-exports libc++abi by install name ($LIBCXX_PREFIX/lib), which lld resolves on disk under a
-# -syslibroot. A staged lib is not installed there, so give lld a root in which it is.
-ROOTFLAG=""
-if [ "$LIBCXX_LIB" != "$LIBCXX_PREFIX/lib" ]; then
-  mkdir -p "$t/root$LIBCXX_PREFIX"; ln -s "$LIBCXX_LIB" "$t/root$LIBCXX_PREFIX/lib"
-  ROOTFLAG="-Wl,-syslibroot,$t/root"
-fi
 
 cxx() {
   "$TC/bin/clang++" --no-default-config --target="$TARGET_TRIPLE" -isysroot "$SDK" \
     -mmacosx-version-min="$MACOS_MIN" -fuse-ld=lld -nostdinc++ \
     -isystem "$TC/include/c++/v1" -isystem "$TC/include/mavericks-compat" -isystem "$TC/include/recaulk" \
-    -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" $ROOTFLAG "$@"
+    -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" "$@"
 }
 
 # How to execute an x86_64 binary. On an x86_64 host, directly. Elsewhere also directly, never through
