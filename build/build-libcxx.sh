@@ -23,7 +23,14 @@
 #                             extensions without a warning; libc++ calls no extension-unavailable API.
 #                             lld warns that 10.9's own libraries are not so marked: they predate
 #                             extensions (10.10), so the warning is expected and harmless.
-#   -reexport_library         libc++ re-exports libc++abi.1, as Apple's and Wowfunhappy's do, and
+#   -reexport_library         libc++ re-exports libc++abi.1, as Apple's and Wowfunhappy's do, by
+#                             @loader_path/libc++abi.1.dylib: ld64.lld resolves a re-export only by its
+#                             recorded path, so an absolute one failed every link against a libcxx22
+#                             not installed at its prefix (a fetched one on CI; shipyard QUEUE #86),
+#                             and @loader_path is beside libc++ wherever it sits. dyld has it since
+#                             10.4. lld records the re-exported dylib's install name and has no
+#                             -dylib_file, so libc++ links against a scratch libc++abi.1 named so;
+#                             the shipped one keeps its absolute install name. And
 #   -reexport-lc++abi         both re-export the system's /usr/lib/libc++abi.dylib, libc++ directly
 #                             too, so its one C++ ABI is visible in its own load commands.
 #   --no-default-config       keeps the toolchain's clang.cfg (-dead_strip_dylibs, frameworks, its own
@@ -80,8 +87,11 @@ LINK="--no-default-config --target=$TARGET_TRIPLE -isysroot $SDK -mmacosx-versio
 "$CC" $LINK -install_name "$LIBCXX_PREFIX/lib/libc++abi.1.dylib" \
   -Wl,-reexport-lc++abi "$@" "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++abi.exp" -o "$OUT/libc++abi.1.dylib"
+"$CC" $LINK -install_name @loader_path/libc++abi.1.dylib \
+  -Wl,-reexport-lc++abi "$@" "$RECAULK_A" \
+  -Wl,-exported_symbols_list,"$EXP/libc++abi.exp" -o "$EXP/libc++abi.1-reexported-as.dylib"
 "$CC" $LINK -install_name "$LIBCXX_PREFIX/lib/libc++.1.dylib" \
-  -Wl,-force_load,"$RTDIR/libc++.a" -Wl,-reexport_library,"$OUT/libc++abi.1.dylib" -Wl,-reexport-lc++abi "$RECAULK_A" \
+  -Wl,-force_load,"$RTDIR/libc++.a" -Wl,-reexport_library,"$EXP/libc++abi.1-reexported-as.dylib" -Wl,-reexport-lc++abi "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++.exp" -o "$OUT/libc++.1.dylib"
 
 echo "OK: libcxx22 staged at $LIBCXX_STAGE"
