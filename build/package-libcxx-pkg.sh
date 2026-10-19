@@ -2,7 +2,7 @@
 # platform: macOS-only -- pkgbuild and productbuild (via build_component_pkg.sh and set_install_floor.sh) build the installer archive
 # Package the staged libc++ runtime (libcxx<line>): a flat component pkg wrapped in a product archive
 # that enforces the 10.9.5 install floor. The runtime loads on any 10.9 box on its own (its only
-# dependencies are libSystem and its own libc++abi), so there are no hooks and no --requires.
+# dependencies are libSystem and the system's libc++abi), so there are no hooks and no --requires.
 # Emits build-info-libcxx.txt.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"

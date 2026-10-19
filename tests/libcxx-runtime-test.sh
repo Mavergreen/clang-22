@@ -25,6 +25,11 @@ NM="${NM:-nm}"; OTOOL="${OTOOL:-otool}"
 [ -x "$TC/bin/clang++" ] || { echo "no toolchain at $TC -- skipping"; exit 77; }
 [ -f "$LIBCXX_LIB/libc++.1.dylib" ] && [ -f "$LIBCXX_LIB/libc++abi.1.dylib" ] \
   || { echo "libcxx22 not staged at $LIBCXX_LIB -- skipping"; exit 77; }
+# dyld tries the install name first and the fallback path only when that is missing, so with libcxx22
+# installed a staged copy would never load: the run would test the installed one and pass for it.
+if [ "$LIBCXX_LIB" != "$LIBCXX_PREFIX/lib" ] && [ -e "$LIBCXX_PREFIX/lib/libc++.1.dylib" ]; then
+  echo "libcxx22 is installed at $LIBCXX_PREFIX, which dyld would load instead of $LIBCXX_LIB -- skipping"; exit 77
+fi
 
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
 [ -d "$SDK" ] || { echo "FAIL: 10.9 SDK not found: '$SDK'" >&2; exit 1; }

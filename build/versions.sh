@@ -65,8 +65,8 @@ export CROSS_PREFIX="/usr/local/mavergreen/clang${CLANG_LINE}-cross"
 export NATIVE_IDENTIFIER="dev.mavergreen.clang.clang${CLANG_LINE}"
 export CROSS_IDENTIFIER="dev.mavergreen.clang.clang${CLANG_LINE}-cross"
 export LIBCXX_IDENTIFIER="dev.mavergreen.clang.libcxx${CLANG_LINE}"
-# libcxx22: LLVM's libc++/libc++abi as runtime dylibs, relinked from the cross build's runtimes
-# archives by build/build-libcxx.sh -- a product of its own, at its own prefix. LIBCXX_STAGE is
+# libcxx22: LLVM's libc++ as runtime dylibs on the system's libc++abi, relinked from the cross build's
+# runtimes archive by build/build-libcxx.sh -- a product of its own, at its own prefix. LIBCXX_STAGE is
 # overridable so the tests can point at an expanded pkg or the installed tree.
 export LIBCXX_PREFIX="/usr/local/mavergreen/libcxx${CLANG_LINE}"
 export LIBCXX_STAGE="${LIBCXX_STAGE:-$WORK/stage-libcxx$LIBCXX_PREFIX}"

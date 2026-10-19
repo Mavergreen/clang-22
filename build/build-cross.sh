@@ -130,6 +130,17 @@ RUNTIME_TARGET="x86_64-apple-darwin"
 # The minimum is not a setting at all. compiler-rt clears CMAKE_OSX_DEPLOYMENT_TARGET for the builtins
 # and hardcodes DARWIN_osx_BUILTIN_MIN_VER 10.7, so step 2 rewrites that one line of the unpacked
 # source (mav_pin_builtins_min_ver in build/lib.sh).
+#
+# ONE C++ ABI: THE SYSTEM'S. libc++ is built on /usr/lib/libc++abi.dylib (LIBCXX_CXX_ABI
+# system-libcxxabi, as Apple builds it), and neither libc++abi nor libunwind is built. A libc++abi of
+# our own put two in any process that also loads Foundation (libobjc uses the system's), and catching
+# an exception the other copy threw freed the wrong pointer and crashed: the copies' exception headers
+# differ. LLVM's own cxxabi.h is the interface libc++ compiles against; libc++ itself defines the new
+# and delete operators 10.9's libc++abi lacks; and Recaulk back-fills the rest of what 10.9's lacks
+# (__cxa_uncaught_exceptions, __cxa_init_primary_exception, __cxa_call_terminate,
+# __cxa_throw_bad_array_new_length, type_info for char8_t &c), reaching libc++ through the
+# CMAKE_SHARED_LINKER_FLAGS below and every program through clang++.cfg. The unwinder is the system's,
+# in libSystem. tests/cxxabi-interop-test.sh is the gate.
 RC="-isystem $HERE/shim/include -isystem $RECAULK_INC/recaulk -include $HERE/shim/aligned_alloc.h -fno-jump-tables"
 rm -rf "$BLD"
 shipyard-cmake -G Ninja -S "$SRC/llvm" -B "$BLD" \
@@ -140,7 +151,7 @@ shipyard-cmake -G Ninja -S "$SRC/llvm" -B "$BLD" \
   -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET="$HOST_MACOS_MIN" \
   -DCMAKE_OSX_SYSROOT="$HOST_SDK" \
   -DLLVM_ENABLE_PROJECTS="clang;lld" \
-  -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind;compiler-rt" \
+  -DLLVM_ENABLE_RUNTIMES="libcxx;compiler-rt" \
   -DLLVM_RUNTIME_TARGETS="$RUNTIME_TARGET" -DRUNTIMES_BUILD_ALLOW_DARWIN=ON \
   -DLLVM_BUILTIN_TARGETS="$RUNTIME_TARGET" \
   "-DBUILTINS_${RUNTIME_TARGET}_CMAKE_OSX_SYSROOT=$SDK" \
@@ -161,6 +172,9 @@ shipyard-cmake -G Ninja -S "$SRC/llvm" -B "$BLD" \
   "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_CXX_FLAGS=$RC" \
   "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_EXE_LINKER_FLAGS=$RECAULK_A" \
   "-DRUNTIMES_${RUNTIME_TARGET}_CMAKE_SHARED_LINKER_FLAGS=$RECAULK_A" \
+  "-DRUNTIMES_${RUNTIME_TARGET}_LIBCXX_CXX_ABI=system-libcxxabi" \
+  "-DRUNTIMES_${RUNTIME_TARGET}_LIBCXX_CXX_ABI_INCLUDE_PATHS=$SRC/libcxxabi/include" \
+  "-DRUNTIMES_${RUNTIME_TARGET}_LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS=ON" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_IOS=OFF" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_WATCHOS=OFF" \
   "-DRUNTIMES_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_TVOS=OFF" \
@@ -196,9 +210,16 @@ rm -rf "$STAGE/include/mavericks-compat"; cp -R "$HERE/shim/include" "$STAGE/inc
 # nothing and fails only at the first user's link step.
 RTDIR="$(dirname "$(find "$STAGE/lib" -name 'libc++.a' -print 2>/dev/null | head -1)")"
 [ -d "$RTDIR" ] || { echo "FATAL: no libc++.a under $STAGE/lib -- did the runtimes build run?" >&2; exit 1; }
-for lib in libc++.a libc++abi.a libunwind.a; do
-  [ -f "$RTDIR/$lib" ] || { echo "FATAL: $lib missing from $RTDIR" >&2; exit 1; }
+[ -f "$RTDIR/libc++.a" ] || { echo "FATAL: libc++.a missing from $RTDIR" >&2; exit 1; }
+# One C++ ABI, the system's (step 3): a libc++abi or libunwind of our own here would be linked in.
+for lib in libc++abi.a libunwind.a; do
+  [ ! -e "$RTDIR/$lib" ] || { echo "FATAL: $RTDIR has $lib; the C++ ABI and unwinder must be the system's" >&2; exit 1; }
 done
+# The ABI headers libc++ compiles against (step 3), which a system-libcxxabi build keeps private, are
+# shipped as the libc++abi build used to install them: code includes <cxxabi.h> for abi::__cxa_demangle
+# and the rest, and it declares what Recaulk back-fills. libunwind.h is the SDK's, the system unwinder's.
+[ -d "$STAGE/include/c++/v1" ] || { echo "FATAL: no libc++ headers at $STAGE/include/c++/v1" >&2; exit 1; }
+cp "$SRC/libcxxabi/include/cxxabi.h" "$SRC/libcxxabi/include/__cxxabi_config.h" "$STAGE/include/c++/v1/"
 RTREL="${RTDIR#"$STAGE"/}"          # e.g. lib/x86_64-apple-macos10.9
 echo "    target C++ runtime: $RTREL"
 
@@ -244,13 +265,14 @@ printf '%s\n' \
   '<CFGDIR>/../lib/librecaulk.a' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
   > "$STAGE/bin/clang.cfg"
-# The C++ driver additionally links the toolchain's C++ runtime STATICALLY but GAP-FILLING, so every
-# C++ executable is self-contained and portable with no rpath: -nostdlib++ (don't pull the libc++
-# dylib) plus a portable-ld wrapper that appends the three .a at the END of the link line. A static
+# The C++ driver additionally links the toolchain's libc++ STATICALLY but GAP-FILLING, so every C++
+# executable is portable with no rpath: -nostdlib++ (don't pull the libc++ dylib) plus a portable-ld
+# wrapper that appends libc++.a and the system's libc++abi at the END of the link line. A static
 # archive supplies only what is still undefined when reached, so a normal program gets the whole STL
 # while a program bundling its own libc++ resolves that first and gets no duplicate-symbol error.
 # -dead_strip_dylibs, as in clang.cfg, drops whichever of libobjc and the three frameworks (there for
-# librecaulk's members) a program does not use, so plain C++ depends on libSystem alone.
+# librecaulk's members) a program does not use, so plain C++ depends on libSystem and
+# /usr/lib/libc++abi.dylib alone, both on every macOS since 10.7.
 printf '%s\n' \
   "--target=$TARGET_TRIPLE" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
@@ -264,12 +286,13 @@ printf '%s\n' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
   '--ld-path=<CFGDIR>/portable-ld' \
   > "$STAGE/bin/clang++.cfg"
-# portable-ld: the real ld64.lld, then the x86_64 C++ runtime appended LAST (dependency order:
-# libc++ -> libc++abi -> libunwind). Resolves its own dir, so the toolchain stays relocatable.
+# portable-ld: the real ld64.lld, then the x86_64 libc++ appended LAST, then the system's libc++abi it
+# is built on (step 3), found under the -syslibroot the driver passes. Resolves its own dir, so the
+# toolchain stays relocatable.
 printf '%s\n' '#!/bin/sh' \
   'DIR="$(cd "$(dirname "$0")" && pwd)"' \
   'RT="$DIR/../'"$RTREL"'"' \
-  'exec "$DIR/ld64.lld" "$@" "$RT/libc++.a" "$RT/libc++abi.a" "$RT/libunwind.a"' \
+  'exec "$DIR/ld64.lld" "$@" "$RT/libc++.a" -lc++abi' \
   > "$STAGE/bin/portable-ld"
 chmod +x "$STAGE/bin/portable-ld"
 
@@ -290,7 +313,7 @@ done
 MAVERICKS_ALLOW_ARCHS=arm64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$@"
 MAVERICKS_ALLOW_ARCHS=x86_64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$STAGE"/lib/clang/*/lib/darwin/*.a
 
-# The C++ runtime archives are linked into every C++ program too, so they are held to the same arch
+# The C++ runtime archive is linked into every C++ program too, so they are held to the same arch
 # and pins -- but not through assert_binary_compatible.sh, whose import check reads every archive
 # member's undefined symbols. libc++'s chrono.o imports clock_gettime (10.12+) by design, and the
 # Recaulk archive defines it in the final link; tests/smoke-target.sh proves that link on the
@@ -298,7 +321,7 @@ MAVERICKS_ALLOW_ARCHS=x86_64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" 
 # librecaulk.a is left out: it is the prebuilt Recaulk release, checked where it
 # is built.
 . "$SHIPYARD_SCRIPTS/sdk-pins.sh"
-for a in "$RTDIR/libc++.a" "$RTDIR/libc++abi.a" "$RTDIR/libunwind.a"; do
+for a in "$RTDIR/libc++.a"; do
   slices="$(sh "$SHIPYARD_SCRIPTS/macho-slices.sh" "$a")" || { echo "FATAL: $a is not a readable Mach-O" >&2; exit 1; }
   while read -r s_arch s_ft s_minos s_sdk; do
     [ "$s_arch" = x86_64 ] || { echo "FATAL: $a has a slice for $s_arch; the target runtime is x86_64 only" >&2; exit 1; }

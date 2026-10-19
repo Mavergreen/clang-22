@@ -188,7 +188,8 @@ jobs:
             dist/*cross*.pkg
             dist/build-info-cross.txt
 
-      # libcxx22: libc++/libc++abi relinked from the runtimes archives above, shipped beside clang22. It
+      # libcxx22: libc++ relinked from the runtimes archive above, beside a libc++abi.1 that re-exports
+      # the system's (build/build-libcxx.sh), shipped beside clang22. It
       # lives in this job because the archives and the cross clang are here; its x86_64/10.9 updater
       # builds on this arm64 runner exactly as the native one does.
       - name: Relink libc++/libc++abi as the libcxx22 runtime dylibs
@@ -199,6 +200,11 @@ jobs:
 
       - name: libcxx22 runs a C++ program (exceptions, iostreams, threads)
         run: sh tests/libcxx-runtime-test.sh
+
+      # One C++ ABI, the system's: exceptions cross between our code, the system's C++ and Cocoa, in
+      # the toolchain's own static link and through libcxx22. Exit 77 (cannot execute x86_64) fails it.
+      - name: One C++ ABI across our code, the system's C++ and Cocoa
+        run: sh tests/cxxabi-interop-test.sh
 
       - name: Build the libcxx22 Sparkle updater (x86_64/10.9)
         run: |
@@ -340,6 +346,13 @@ jobs:
           set -eu
           REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
           TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/weak-bind-order-test.sh
+
+      # The native toolchain's own static C++ link (no libcxx22 in this job), under Rosetta here.
+      - name: Native toolchain uses one C++ ABI across our code, the system's C++ and Cocoa
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/cxxabi-interop-test.sh
 
       # x86_64/min-10.9, because this updater RUNS on the 10.9 box it updates. Built by the runner's
       # Apple clang against the modern SDK -- Cocoa/Sparkle only, so it needs none of the 10.9 SDK

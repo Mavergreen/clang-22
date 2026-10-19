@@ -98,17 +98,15 @@ RTREL="${RTDIR#"$CROSS_STAGE"/}"    # 'lib' here; 'lib/<triple>' under a per-tar
 echo "    reusing target C++ runtime from $RTREL"
 install -d "$STAGE/$RTREL" "$STAGE/lib" "$STAGE/include" "$STAGE/libexec"
 copied=0
-for pat in 'libc++*.a' 'libc++abi*.a' 'libunwind*.a' \
-           'libc++*.dylib' 'libc++abi*.dylib' 'libunwind*.dylib' 'libc++.modules.json'; do
+# libc++ alone: it is built on the system's libc++abi and unwinder (build-cross.sh step 3).
+for pat in 'libc++*.a' 'libc++*.dylib' 'libc++.modules.json'; do
   for f in "$RTDIR"/$pat; do
     [ -e "$f" ] || continue
     cp -p "$f" "$STAGE/$RTREL/"; copied=$((copied + 1))
   done
 done
 [ "$copied" -gt 0 ] || { echo "FATAL: copied no runtime files from $RTDIR" >&2; exit 1; }
-for lib in libc++.a libc++abi.a libunwind.a; do
-  [ -f "$STAGE/$RTREL/$lib" ] || { echo "FATAL: $lib missing from $STAGE/$RTREL" >&2; exit 1; }
-done
+[ -f "$STAGE/$RTREL/libc++.a" ] || { echo "FATAL: libc++.a missing from $STAGE/$RTREL" >&2; exit 1; }
 
 # compiler-rt builtins: the native build has LLVM_ENABLE_RUNTIMES="" and so produces none of its own,
 # but CLANG_DEFAULT_RTLIB is compiler-rt on Darwin -- without these a user's first link fails.
@@ -126,7 +124,7 @@ fi
 # single C++ program -- it fails with "'iostream' file not found", which reads like a broken install
 # rather than a missing build step. Caught by the "best-effort, never gates" Rosetta smoke, which is
 # exactly the kind of defect no amount of inspecting the staged file list would have surfaced.
-for h in "c++" "__libunwind_config.h" "libunwind.h" "libunwind.modulemap"; do
+for h in "c++"; do
   [ -e "$CROSS_STAGE/include/$h" ] || continue
   rm -rf "$STAGE/include/$h"
   cp -R "$CROSS_STAGE/include/$h" "$STAGE/include/"

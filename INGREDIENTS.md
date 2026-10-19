@@ -78,8 +78,24 @@ picks which one owns the bare names:
 | cross | modern arm64 macOS | `/usr/local/mavergreen/clang<line>-cross` | `dev.mavergreen.clang.clang<line>-cross` | 11.0 |
 | libcxx22 (runtime) | x86_64 Mavericks | `/usr/local/mavergreen/libcxx<line>` | `dev.mavergreen.clang.libcxx<line>` | 10.9.5 |
 
-libcxx22 is relinked from the cross build's `libc++.a`/`libc++abi.a` by `build/build-libcxx.sh`; its group
-is `libcxx`, and its build-info agrees with the toolchains on `llvm`, `recaulk` and `target`.
+libcxx22 is relinked from the cross build's `libc++.a` by `build/build-libcxx.sh`; its group is `libcxx`,
+and its build-info agrees with the toolchains on `llvm`, `recaulk` and `target`.
+
+**One C++ ABI, the system's.** libc++ is built on `/usr/lib/libc++abi.dylib`, as Apple builds it, and no
+libc++abi or libunwind of LLVM's ships. Every C++ program clang22 links statically takes libc++.a and the
+system's libc++abi, and libcxx22's `libc++abi.1.dylib` is not LLVM's: it re-exports the system's and
+exports Recaulk's libc++abi back-fills, the names 10.9's lacks that Wowfunhappy's `libc++abi.1.dylib`
+exported, so programs built against his still load. Before, a libc++abi of our own sat beside the
+system's (Foundation's libobjc uses it) in any Cocoa process, and an exception caught by the copy that
+did not throw it crashed. Recaulk (from 20261019.1) back-fills what 10.9's libc++abi lacks, so this
+repo's Recaulk pin is also its C++ runtime's. The aligned and sized new and delete moved from
+`libc++abi.1.dylib` to `libc++.1.dylib`, which defines them; every name the parity references export
+stays reachable through `libc++.1.dylib`. `tests/cxxabi-interop-test.sh` is the gate.
+
+One known limit, 10.9's own: its libc++abi places a thrown object 8 bytes past a 16-byte boundary, and
+clang 22 still reads a caught `__int128` (or any 16-byte-aligned type it loads with SSE) as aligned, so
+catching one faults on 10.9 to 10.13. clang warns on the throw side ("underaligned exception object");
+the catch side is a clang defect, queued to take upstream.
 
 Both target `x86_64-apple-macos10.9`, and both are built on the modern arm64 runner in one run — the
 native variant is cross-*hosted* using the cross variant as its compiler, so nothing x86_64 is ever

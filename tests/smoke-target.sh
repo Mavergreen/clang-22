@@ -31,10 +31,12 @@ EOF
 "$CLANGXX" "$t/hello.cpp" -o "$t/hello"
 lipo -info "$t/hello" | sed -n 's/.*: //p' | grep -qw x86_64 || { echo "FAIL: not x86_64"; exit 1; }
 # clang++.cfg links libobjc and three frameworks for librecaulk's members; -dead_strip_dylibs must
-# drop every one hello does not use, as clang.cfg does for C, so it depends on libSystem alone.
+# drop every one hello does not use, as clang.cfg does for C, so it depends on libSystem and the
+# system's libc++abi (the one C++ ABI, build-cross.sh step 3) alone, both on every macOS since 10.7.
 OTOOL="$STAGE/bin/llvm-otool"; [ -x "$OTOOL" ] || OTOOL=otool
 deps="$("$OTOOL" -L "$t/hello" | sed 1d | awk '{print $1}')"
-[ "$deps" = /usr/lib/libSystem.B.dylib ] || { echo "FAIL: hello links more than libSystem:"; echo "$deps"; exit 1; }
+[ "$(printf '%s\n' "$deps" | LC_ALL=C sort)" = "$(printf '%s\n' /usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib | LC_ALL=C sort)" ] \
+  || { echo "FAIL: hello links other than libSystem and /usr/lib/libc++abi.dylib:"; echo "$deps"; exit 1; }
 
 # The compat guard: assert the emitted binary is 10.9-safe. Do NOT point it at the arm64 host clang --
 # it asserts arch x86_64 by design and would fail for the wrong reason.

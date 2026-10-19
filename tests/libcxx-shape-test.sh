@@ -1,8 +1,10 @@
 #!/bin/sh
 # platform: macOS-only -- otool and nm read the staged dylibs
-# SKIP (77) until libcxx22 is staged. Then assert its shape: install names at $LIBCXX_PREFIX, exactly
-# libSystem (+ libc++abi, reexported, for libc++) as dependencies, no rpath and no libunwind, none of
-# Recaulk's symbols exported, every parity name exported, 10.9-safe, relocatable.
+# SKIP (77) until libcxx22 is staged. Then assert its shape: install names at $LIBCXX_PREFIX; one C++ ABI,
+# the system's (libc++abi.1 re-exports /usr/lib/libc++abi.dylib and libc++ re-exports libc++abi.1), with
+# libSystem as the only other dependency; no rpath and no libunwind; of Recaulk's symbols, exactly its
+# libc++abi back-fills exported, by libc++abi.1 alone; every parity name reachable; 10.9-safe;
+# relocatable.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
 . "$ROOT/build/versions.sh"
@@ -26,6 +28,12 @@ exports "$RECAULK_A" "$T/recaulk"
 # An empty Recaulk set would make the "exports none of Recaulk's symbols" check below pass vacuously.
 n="$(grep -c '^_' "$T/recaulk" || true)"
 [ "$n" -gt 0 ] || fail "no defined exports read from $RECAULK_A"
+# Recaulk's libc++abi back-fills: the names Wowfunhappy's libc++abi.1.dylib exported that 10.9's lacks.
+grep -E '^(___cxa_|__ZT[IS])' "$T/recaulk" > "$T/recaulk-cxxabi" || true
+[ -s "$T/recaulk-cxxabi" ] || fail "no libc++abi back-fills in $RECAULK_A (older than Recaulk 20261019.1?)"
+SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
+for f in "$SDK/usr/lib/libc++abi.dylib" "$SDK/usr/lib/libc++abi.tbd"; do [ -f "$f" ] && exports "$f" "$T/sys" && break; done
+[ -s "$T/sys" ] || fail "no exports read from the 10.9 SDK's libc++abi"
 
 for lib in libc++abi.1 libc++.1; do
   d="$L/$lib.dylib"; want_id="$LIBCXX_PREFIX/lib/$lib.dylib"
@@ -35,19 +43,17 @@ for lib in libc++abi.1 libc++.1; do
 
   "$OTOOL" -L "$d" > "$T/L" || fail "$OTOOL -L $d"
   deps="$(tail -n +2 "$T/L" | sed 's/^[[:space:]]*//' | grep -v -F "$want_id " || true)"
+  # lld links a public re-exported library directly too, as ld64 does: libc++ names /usr/lib/libc++abi.dylib.
   case "$lib" in
-    libc++.1)
-      [ "$(printf '%s\n' "$deps" | awk '{print $1}')" = "$(printf '%s\n' "$LIBCXX_PREFIX/lib/libc++abi.1.dylib" /usr/lib/libSystem.B.dylib)" ] \
-        || fail "$lib dependencies:
-$deps"
-      printf '%s\n' "$deps" | grep -F "$LIBCXX_PREFIX/lib/libc++abi.1.dylib " | grep -q 'reexport)$' \
-        || fail "$lib does not reexport libc++abi:
-$deps" ;;
-    libc++abi.1)
-      [ "$(printf '%s\n' "$deps" | awk '{print $1}')" = /usr/lib/libSystem.B.dylib ] \
-        || fail "$lib dependencies:
-$deps" ;;
+    libc++.1) want_deps="$LIBCXX_PREFIX/lib/libc++abi.1.dylib /usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib"; reexp="$LIBCXX_PREFIX/lib/libc++abi.1.dylib" ;;
+    libc++abi.1) want_deps="/usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib"; reexp=/usr/lib/libc++abi.dylib ;;
   esac
+  [ "$(printf '%s\n' "$deps" | awk '{print $1}' | LC_ALL=C sort)" = "$(printf '%s\n' $want_deps | LC_ALL=C sort)" ] \
+    || fail "$lib dependencies:
+$deps"
+  printf '%s\n' "$deps" | grep -F "$reexp " | grep -q 'reexport)$' \
+    || fail "$lib does not reexport $reexp:
+$deps"
 
   "$OTOOL" -l "$d" > "$T/lc" || fail "$OTOOL -l $d"
   # The two greps below pass on empty input, so first prove otool printed the load commands.
@@ -56,14 +62,30 @@ $deps" ;;
   if grep -E '@rpath|libunwind' "$T/lc"; then fail "$lib names @rpath or libunwind in a load command"; fi
 
   exports "$d" "$T/$lib"
-  both="$(LC_ALL=C comm -12 "$T/$lib" "$T/recaulk")"
-  [ -z "$both" ] || fail "$lib exports Recaulk symbols:
-$both"
-  missing="$(LC_ALL=C comm -23 "$HERE/fixtures/parity/$lib.exports" "$T/$lib")"
-  [ -z "$missing" ] || fail "$lib lacks $(printf '%s\n' "$missing" | wc -l | tr -d ' ') parity export(s):
-$missing"
+  # libRecaulkSystem stays the one exporter of Recaulk's back-fills, but for those a program built
+  # against Wowfunhappy's libc++abi.1.dylib binds to it by name: libc++abi.1 exports exactly them.
+  case "$lib" in
+    libc++.1)
+      both="$(LC_ALL=C comm -12 "$T/$lib" "$T/recaulk")"
+      [ -z "$both" ] || fail "$lib exports Recaulk symbols:
+$both" ;;
+    libc++abi.1)
+      cmp -s "$T/$lib" "$T/recaulk-cxxabi" || fail "$lib exports other than Recaulk's libc++abi back-fills:
+$(diff "$T/recaulk-cxxabi" "$T/$lib")" ;;
+  esac
   echo "ok $lib: $(wc -l < "$T/$lib" | tr -d ' ') exports"
 done
+
+# Parity, through libc++.1.dylib, as every program linked with -lc++ binds: its own exports, libc++abi.1's
+# it re-exports, and the system libc++abi that one re-exports. The aligned and sized new and delete moved
+# from libc++abi.1 to libc++.1, which defines them when built on the system's libc++abi.
+cat "$T/libc++.1" "$T/libc++abi.1" "$T/sys" | LC_ALL=C sort -u > "$T/closure"
+for lib in libc++.1 libc++abi.1; do
+  missing="$(LC_ALL=C comm -23 "$HERE/fixtures/parity/$lib.exports" "$T/closure")"
+  [ -z "$missing" ] || fail "$(printf '%s\n' "$missing" | wc -l | tr -d ' ') of $lib's parity export(s) are not reachable:
+$missing"
+done
+echo "ok parity: every reference name reachable through libc++.1.dylib"
 
 MAVERICKS_DEVIATIONS_ROOT="$ROOT" sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$L/libc++.1.dylib" "$L/libc++abi.1.dylib"
 sh "$ROOT/build/verify-relocatable.sh" "$LIBCXX_STAGE"
