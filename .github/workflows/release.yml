@@ -153,6 +153,10 @@ jobs:
       - name: ld64.lld writes weak bindings in name order
         run: sh tests/weak-bind-order-test.sh
 
+      # Before 10.14 an exception object is 8-byte aligned; a value caught by value is read so (patches/0003).
+      - name: A caught value is read at the exception object's alignment
+        run: sh tests/catch-align-test.sh
+
       # Exit 77 (cannot execute x86_64) fails this step on purpose: see the test's header.
       - name: Coverage works (profile runtime links, runs, reads back)
         run: sh tests/profile-runtime-test.sh
@@ -346,6 +350,12 @@ jobs:
           set -eu
           REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
           TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/weak-bind-order-test.sh
+
+      - name: Native clang reads a caught value at the exception object's alignment
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/catch-align-test.sh
 
       # The native toolchain's own static C++ link (no libcxx22 in this job), under Rosetta here.
       - name: Native toolchain uses one C++ ABI across our code, the system's C++ and Cocoa
@@ -543,6 +553,7 @@ jobs:
             export NM=$I/clang22/bin/llvm-nm OTOOL=$I/clang22/bin/llvm-otool LIPO=$I/clang22/bin/llvm-lipo STRINGS=$I/clang22/bin/llvm-strings
             must env TC=$I/clang22 LIBCXX_LIB=$I/libcxx22/lib sh tests/cxxabi-interop-test.sh
             must env TC=$I/clang22 sh tests/weak-bind-order-test.sh
+            must env TC=$I/clang22 sh tests/catch-align-test.sh
             must env TC=$I/clang22 LIBCXX_LIB=$I/libcxx22/lib sh tests/libcxx-runtime-test.sh
             must env TC=$I/clang22 sh tests/profile-runtime-test.sh
             must env TC=$I/clang22 sh tests/tbd-arch-test.sh
