@@ -1,0 +1,60 @@
+Mavergreen's own, not yet upstream: ld64.lld writes a program's weak binding info sorted by symbol
+name, non-weak definitions among the names, as ld64 does. lld (22.1.8, and main as of 2026-10-19)
+writes it in address order.
+
+Why: dyld before dyld3, 10.9's dyld-239 among them, coalesces weak symbols across images by walking
+every image's weak binding info in step, always advancing the image whose current name is lowest
+(ImageLoader::weakBind). An image whose names are out of order is passed over for each name it reaches
+after another image has moved beyond it, and the two images keep separate definitions. On 10.9 that
+made a type_info defined in a header (weak in every image) differ between a program and its dylibs, so
+a catch in one missed an exception of that type thrown in the other; inline functions' static locals
+split the same way. Apple's ld64-241.9 sorts by name, and the same program linked by it coalesces.
+
+tests/weak-bind-order-test.sh is the regression test (the table on any host; the coalescing where
+x86_64 runs). To offer upstream, with that test's case as an lld lit test.
+
+diff --git a/lld/MachO/SyntheticSections.cpp b/lld/MachO/SyntheticSections.cpp
+index 36d1541..09ab858 100644
+--- a/lld/MachO/SyntheticSections.cpp
++++ b/lld/MachO/SyntheticSections.cpp
+@@ -674,12 +674,28 @@ void WeakBindingSection::finalizeContents() {
+   raw_svector_ostream os{contents};
+   Binding lastBinding;
+ 
+-  for (const Defined *defined : definitions)
+-    encodeWeakOverride(defined, os);
++  // Emit the entries in symbol name order, non-weak definitions among them, as
++  // ld64 does. dyld before dyld3 coalesces weak symbols by walking every
++  // image's weak binding info in step, always advancing the image whose current
++  // name is lowest, so it assumes each image's names are sorted; an image whose
++  // names are not is passed over for every name it reaches after another image
++  // has moved beyond it, and each keeps its own definition.
++  auto sorted = sortBindings(bindingsMap);
++  llvm::stable_sort(sorted, [](const auto &a, const auto &b) {
++    return a.first->getName() < b.first->getName();
++  });
++  std::vector<const Defined *> defs(definitions.begin(), definitions.end());
++  llvm::stable_sort(defs, [](const Defined *a, const Defined *b) {
++    return a->getName() < b->getName();
++  });
++  auto nextDef = defs.begin();
+ 
+-  for (auto &p : sortBindings(bindingsMap)) {
++  for (auto &p : sorted) {
+     const Symbol *sym = p.first;
+     std::vector<BindingEntry> &bindings = p.second;
++    for (; nextDef != defs.end() && (*nextDef)->getName() <= sym->getName();
++         ++nextDef)
++      encodeWeakOverride(*nextDef, os);
+     os << static_cast<uint8_t>(BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM)
+        << sym->getName() << '\0'
+        << static_cast<uint8_t>(BIND_OPCODE_SET_TYPE_IMM | BIND_TYPE_POINTER);
+@@ -693,6 +709,8 @@ void WeakBindingSection::finalizeContents() {
+     for (const auto &op : opcodes)
+       flushOpcodes(op, os);
+   }
++  for (; nextDef != defs.end(); ++nextDef)
++    encodeWeakOverride(*nextDef, os);
+   if (!bindingsMap.empty() || !definitions.empty())
+     os << static_cast<uint8_t>(BIND_OPCODE_DONE);
+ }

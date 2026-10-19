@@ -31,8 +31,10 @@ to it is a deliberate repackage, like a patch.
 Patches (`patches/*.patch`, applied to the GPG-verified source by `mav_apply_patches` in
 `build/lib.sh`, which both `build/build-cross.sh` and `build/build-native.sh` call: CI's native job
 unpacks its own copy of the tarball): upstream LLVM fixes the pinned version lacks, each rebased onto
-it and naming its upstream commit in its header. Today one: `0001-arm64e-x1-tbd.patch`, so ld64.lld reads
-macOS 27's SDK stubs. They apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
+it and naming its upstream commit in its header, or Mavergreen's own fix where upstream has none yet:
+`0001-arm64e-x1-tbd.patch`, so ld64.lld reads macOS 27's SDK stubs (upstream's), and
+`0002-lld-weak-bindings-by-name.patch`, so 10.9's dyld coalesces weak symbols across images (ours, to
+offer upstream). They apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
 build by name; drop a patch once the new version carries its commit. A change here is a deliberate
 repackage.
 

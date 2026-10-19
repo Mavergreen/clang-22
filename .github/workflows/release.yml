@@ -149,6 +149,10 @@ jobs:
       - name: ld64.lld reads .tbd stubs that list arm64e.x1
         run: sh tests/tbd-arch-test.sh
 
+      # 10.9's dyld coalesces weak symbols only from name-sorted weak binding info (patches/0002).
+      - name: ld64.lld writes weak bindings in name order
+        run: sh tests/weak-bind-order-test.sh
+
       # Exit 77 (cannot execute x86_64) fails this step on purpose: see the test's header.
       - name: Coverage works (profile runtime links, runs, reads back)
         run: sh tests/profile-runtime-test.sh
@@ -330,6 +334,12 @@ jobs:
           set -eu
           REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
           TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/tbd-arch-test.sh
+
+      - name: Native ld64.lld writes weak bindings in name order
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/weak-bind-order-test.sh
 
       # x86_64/min-10.9, because this updater RUNS on the 10.9 box it updates. Built by the runner's
       # Apple clang against the modern SDK -- Cocoa/Sparkle only, so it needs none of the 10.9 SDK
