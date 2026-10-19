@@ -104,6 +104,7 @@ Machine-read by `artifact-facts.sh` as `- <check>:<glob> : <reason>` (one line e
   Revisit if native-bootstrap ever builds this repo's own CMakeLists.txt, or if the shipyard pkg
   becomes a bootstrap prerequisite.
 - floor:mavericks-clang-*-cross-*.pkg: the cross toolchain runs on macOS 11 and later (arm64) and only targets 10.9, so its archive's install floor is 11.0, not 10.9.5
+- on-target: the on-mavericks job is committed and lands with 22.1.8-mavericks.5; exit: push it
 
 ## Deferred from family conventions (not artifact-conformance checks)
 
