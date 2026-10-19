@@ -490,6 +490,60 @@ jobs:
             dist/clang22*.xml
             dist/libcxx22*.xml
 
+  # The one place 10.9's own libc++abi and dyld meet what this release ships. The native toolchain and
+  # libcxx22 are installed on a Mac OS X 10.9.5 guest, and the C++ ABI crash matrix and the weak-binding
+  # test run there natively against the installed layout; publish waits for them. Under Rosetta on
+  # macos-26 the build jobs prove the same shape against a modern libc++abi and dyld, which neither
+  # bug needs to show itself. The guest has no Command Line Tools: every compile in it is the clang22
+  # just installed, which needs Longboat's sdk109 (`longboat install 10.9`) before its pkg installs. A
+  # test's 77, its skip, is a failure here.
+  on-mavericks:
+    needs: [build-cross, build-native]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write   # mavericks-vm's shared image cache
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: variant-native, path: dist }
+      - uses: actions/download-artifact@v8
+        with: { name: variant-libcxx, path: dist }
+      - name: Install mavericks-shipyard
+        uses: Mavergreen/shipyard/.github/actions/install@v1
+      # The guest gets the workspace, not this runner's shipyard checkout: bring in the scripts the tests
+      # source, and the pinned Longboat (components/longboat/version, CI only), verified against its
+      # release's SHA256SUMS.
+      - name: Bring shipyard's scripts and the pinned Longboat into the workspace
+        run: |
+          set -eu
+          cp -R "$SHIPYARD_SCRIPTS" .shipyard-scripts
+          lb="$(tr -d '[:space:]' < components/longboat/version)"
+          sh "$SHIPYARD_SCRIPTS/fetch-release-pkg.sh" longboat "$lb" "longboat-$lb.pkg" deps
+          ls dist deps
+      - name: Install clang22 and libcxx22 on Mac OS X 10.9 and run the C++ ABI and linker tests there
+        uses: Mavergreen/mavericks-vm@v1
+        with:
+          image-key: ${{ secrets.MAVERICKS_VM_KEY }}
+          cpu: '4'
+          mem: '8192'
+          run: |
+            sw_vers
+            sudo -n true || { echo "the guest's user cannot sudo without a password, and installer needs root"; exit 1; }
+            for p in deps/longboat-*.pkg; do sudo installer -pkg "$p" -target /; done
+            sudo /usr/local/mavergreen/longboat/bin/longboat install 10.9
+            for p in dist/*native*.pkg dist/libcxx*.pkg; do sudo installer -pkg "$p" -target /; done
+            export SHIPYARD_SCRIPTS="$PWD/.shipyard-scripts"
+            must() { status=0; "$@" || status=$?; [ "$status" -eq 0 ] || { echo "$* exited $status (77, a skip, is a failure here)"; exit 1; }; }
+            I=/usr/local/mavergreen
+            must env TC=$I/clang22 LIBCXX_LIB=$I/libcxx22/lib sh tests/cxxabi-interop-test.sh
+            must env TC=$I/clang22 sh tests/weak-bind-order-test.sh
+            must env TC=$I/clang22 LIBCXX_LIB=$I/libcxx22/lib sh tests/libcxx-runtime-test.sh
+            must env TC=$I/clang22 sh tests/profile-runtime-test.sh
+            must env TC=$I/clang22 sh tests/tbd-arch-test.sh
+
   # Before anything is published: no log of this run, and no file about to be released, carries a
   # piece of the signing key. shipyard's publish-release.yml looks for this job's record on any signed
   # release; it cannot run the scan itself (reading job logs needs actions: read).
@@ -506,7 +560,7 @@ jobs:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
   publish:
-    needs: [collect, scan]
+    needs: [collect, scan, on-mavericks]
     if: needs.collect.outputs.publish == 'yes'
     permissions:
       contents: write

@@ -13,6 +13,7 @@ upstream, via `.github/workflows/repackage-on-ingredient-bump.yml`.
 | LLVM release-signing keys | `keys/llvm-release.asc` | ❌ **untrackable — manual refresh** (see below) | not a watched path; a stale bundle fails the build loudly, never silently |
 | MacOSX10.9 SDK | `Mavergreen/shipyard@v1` (`fetch_sdk.sh`) | ✅ github-actions manager tracks the tag | `@v1` is a *moving* tag, so content moves without any path here changing |
 | Sparkle framework (embedded in the updater `.app`) | `Mavergreen/shipyard@v1` (`mavericks_fetch_sparkle`; Sparkle 1.x — the last line that runs on 10.9) | ✅ via `@v1` (github-actions manager) | content moves with `@v1` |
+| longboat (CI only: `on-mavericks` installs it in the 10.9 guest, because clang22's preinstall requires it, and runs `longboat install 10.9` for sdk109; nothing of it ships) | `components/longboat/version` | ✅ `github-releases` on `Mavergreen/longboat`, `YYYYMMDD.N` versioning | no release: nothing shipped changes |
 | Sparkle EdDSA public key | `updater/ed25519_key.pub` | ❌ untrackable (our own key) | baked into the updater's `Info.plist` as `SUPublicEDKey`; paired with the `SPARKLE_PRIVATE_KEY` secret |
 
 Not ingredients: `build/*.sh` and `native-bootstrap/` are this repo's own recipe — a change there is a
@@ -122,7 +123,6 @@ Machine-read by `artifact-facts.sh` as `- <check>:<glob> : <reason>` (one line e
   Revisit if native-bootstrap ever builds this repo's own CMakeLists.txt, or if the shipyard pkg
   becomes a bootstrap prerequisite.
 - floor:mavericks-clang-*-cross-*.pkg: the cross toolchain runs on macOS 11 and later (arm64) and only targets 10.9, so its archive's install floor is 11.0, not 10.9.5
-- on-target: the on-mavericks job is committed and lands with 22.1.8-mavericks.5; exit: push it
 
 ## Deferred from family conventions (not artifact-conformance checks)
 

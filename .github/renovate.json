@@ -17,6 +17,19 @@
       "packageNameTemplate": "llvm/llvm-project",
       "datasourceTemplate": "github-tags",
       "extractVersionTemplate": "^llvmorg-(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "longboat, CI only: on-mavericks installs it in the 10.9 guest because clang22's preinstall requires it and its sdk109. Nothing of it ships, so a bump re-runs CI and releases nothing.",
+      "managerFilePatterns": [
+        "/^components/longboat/version$/"
+      ],
+      "matchStrings": [
+        "^(?<currentValue>\\S+)\\s*$"
+      ],
+      "depNameTemplate": "Mavergreen/longboat",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^(?<major>\\d{8})\\.(?<minor>\\d+)$"
     }
   ],
   "packageRules": [
