@@ -1,0 +1,52 @@
+Mavergreen's own, not yet upstream: clang reads a value caught by value at no more than the target's
+exception object alignment. clang (22.1.8, and main as of 2026-10-19) reads it at the type's own.
+
+Why: before macOS 10.14, libc++abi places a thrown object 8 bytes past a 16-byte boundary, and clang
+knows it: getExnObjectAlignment() is 8 bytes there, and the throw side (emitThrow) uses it. The catch
+side did not. InitCatchParam read a caught scalar with MakeNaturalAlignAddrLValue and copied a caught
+class at getClassPointerAlignment, both the type's own alignment, so catching an __int128 or a
+16-byte-aligned class by value emitted an aligned SSE load that faulted on 10.9 to 10.13. Both reads now
+assume the smaller of the type's alignment and the exception object's. Modern targets, whose exception
+objects are 16-byte aligned, are unchanged.
+
+Not covered, and not fixable here: catching such a type by reference, which binds to the exception
+object itself, so every use of the reference assumes the type's alignment.
+
+tests/catch-align-test.sh is the regression test (the IR on any host, with a 10.14 control; run where
+x86_64 runs, which on 10.9 is CI's on-mavericks job). To offer upstream, with a clang CodeGen lit test of
+the same IR.
+
+diff --git a/clang/lib/CodeGen/ItaniumCXXABI.cpp b/clang/lib/CodeGen/ItaniumCXXABI.cpp
+index 63cb4b6..c907695 100644
+--- a/clang/lib/CodeGen/ItaniumCXXABI.cpp
++++ b/clang/lib/CodeGen/ItaniumCXXABI.cpp
+@@ -5025,9 +5025,13 @@ static void InitCatchParam(CodeGenFunction &CGF,
+       llvm_unreachable("bad ownership qualifier!");
+     }
+ 
+-    // Otherwise, it returns a pointer into the exception object.
+-
+-    LValue srcLV = CGF.MakeNaturalAlignAddrLValue(AdjustedExn, CatchType);
++    // Otherwise, it returns a pointer into the exception object, which is
++    // aligned to no more than the target's exception object alignment (8 bytes
++    // before macOS 10.14, whatever the type's own).
++    CharUnits SrcAlign =
++        std::min(CGF.CGM.getNaturalTypeAlignment(CatchType),
++                 CGF.getContext().getExnObjectAlignment());
++    LValue srcLV = CGF.MakeAddrLValue(AdjustedExn, CatchType, SrcAlign);
+     LValue destLV = CGF.MakeAddrLValue(ParamAddr, CatchType);
+     switch (TEK) {
+     case TEK_Complex:
+@@ -5047,7 +5051,11 @@ static void InitCatchParam(CodeGenFunction &CGF,
+ 
+   assert(isa<RecordType>(CatchType) && "unexpected catch type!");
+   auto catchRD = CatchType->getAsCXXRecordDecl();
+-  CharUnits caughtExnAlignment = CGF.CGM.getClassPointerAlignment(catchRD);
++  // The exception object is aligned to no more than the target's exception
++  // object alignment, whatever the class's own (see the scalar case above).
++  CharUnits caughtExnAlignment =
++      std::min(CGF.CGM.getClassPointerAlignment(catchRD),
++               CGF.getContext().getExnObjectAlignment());
+ 
+   llvm::Type *PtrTy = CGF.DefaultPtrTy;
+ 
