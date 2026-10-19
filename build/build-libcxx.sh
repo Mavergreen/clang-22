@@ -19,7 +19,8 @@
 #                             program bound to it looks for them here.
 #   -exported_symbols_list    each dylib's own interface and nothing else.
 #   -reexport_library         libc++ re-exports libc++abi.1, as Apple's and Wowfunhappy's do, and
-#   -reexport-lc++abi         libc++abi.1 re-exports the system's /usr/lib/libc++abi.dylib.
+#   -reexport-lc++abi         both re-export the system's /usr/lib/libc++abi.dylib, libc++ directly
+#                             too, so its one C++ ABI is visible in its own load commands.
 #   --no-default-config       keeps the toolchain's clang.cfg (-dead_strip_dylibs, frameworks, its own
 #                             librecaulk.a) out. The C driver adds -lSystem and the builtins, never
 #                             libc++, and nothing names libunwind: exceptions unwind through the
@@ -75,7 +76,7 @@ LINK="--no-default-config --target=$TARGET_TRIPLE -isysroot $SDK -mmacosx-versio
   -Wl,-reexport-lc++abi "$@" "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++abi.exp" -o "$OUT/libc++abi.1.dylib"
 "$CC" $LINK -install_name "$LIBCXX_PREFIX/lib/libc++.1.dylib" \
-  -Wl,-force_load,"$RTDIR/libc++.a" -Wl,-reexport_library,"$OUT/libc++abi.1.dylib" "$RECAULK_A" \
+  -Wl,-force_load,"$RTDIR/libc++.a" -Wl,-reexport_library,"$OUT/libc++abi.1.dylib" -Wl,-reexport-lc++abi "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++.exp" -o "$OUT/libc++.1.dylib"
 
 echo "OK: libcxx22 staged at $LIBCXX_STAGE"

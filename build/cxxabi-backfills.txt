@@ -1,0 +1,38 @@
+# The libc++abi entry points 10.9's /usr/lib/libc++abi.dylib lacks that libc++ and clang 22's code
+# generation may reference, all back-filled by Recaulk (src/backfills/cxxabi_*.c, from 20261019.1).
+# build-cross.sh fails the build if libc++ needs one not listed here, naming it, and if Recaulk's set
+# differs from this list. One name per line, LC_ALL=C sorted.
+__ZTIDh
+__ZTIDu
+__ZTIPDh
+__ZTIPDu
+__ZTIPKDh
+__ZTIPKDu
+__ZTIPKg
+__ZTIPKn
+__ZTIPKo
+__ZTIPg
+__ZTIPn
+__ZTIPo
+__ZTIg
+__ZTIn
+__ZTIo
+__ZTSDh
+__ZTSDu
+__ZTSPDh
+__ZTSPDu
+__ZTSPKDh
+__ZTSPKDu
+__ZTSPKg
+__ZTSPKn
+__ZTSPKo
+__ZTSPg
+__ZTSPn
+__ZTSPo
+__ZTSg
+__ZTSn
+__ZTSo
+___cxa_call_terminate
+___cxa_init_primary_exception
+___cxa_throw_bad_array_new_length
+___cxa_uncaught_exceptions

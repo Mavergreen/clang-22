@@ -14,8 +14,10 @@ SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
 CC_="${CC:-cc} -arch x86_64 -isysroot $SDK -mmacosx-version-min=$MACOS_MIN"
 printf 'int main(void){return 0;}\n' > "$T/probe.c"
 $CC_ "$T/probe.c" -o "$T/probe" >/dev/null 2>&1 || { echo "no working ${CC:-cc} for x86_64/10.9 -- skipping"; exit 77; }
-A="$(MAVERICKS_WORK="$T/work" sh "$ROOT/build/fetch-recaulk.sh" 2>"$T/fetch.err" | tail -1)" \
-  || { cat "$T/fetch.err"; fail "cannot fetch the pinned Recaulk"; }
+# Into a file, not through a pipe, whose status would be tail's and hide a failed fetch.
+MAVERICKS_WORK="$T/work" sh "$ROOT/build/fetch-recaulk.sh" > "$T/fetch.out" 2>"$T/fetch.err" \
+  || { cat "$T/fetch.err"; fail "cannot fetch the pinned Recaulk $RECAULK_VERSION"; }
+A="$(tail -1 "$T/fetch.out")"
 INC="$(dirname "$(dirname "$A")")/include"
 cat > "$T/q.c" <<'C'
 #include <pthread/qos.h>

@@ -13,6 +13,9 @@
 #include "shared.h"
 
 extern "C" void *__cxa_begin_catch(void *) noexcept;
+extern "C" void __cxa_end_catch();
+extern "C" void *__cxa_allocate_exception(size_t) noexcept;
+extern "C" [[noreturn]] void __cxa_throw(void *, std::type_info *, void (*)(void *));
 extern "C" [[noreturn]] void __cxa_throw_bad_array_new_length();
 
 static void new_throw_runtime(void) { Guard g{"new"}; throw std::runtime_error("new"); }
@@ -33,9 +36,20 @@ int main(int argc, char **argv) {
   const char *c = argc > 1 ? argv[1] : "";
   @autoreleasepool {
   if (!std::strcmp(c, "one-abi")) {  // the C++ ABI this program uses is the system's
-    Dl_info i;
-    if (!dladdr(reinterpret_cast<void *>(&__cxa_begin_catch), &i) || !i.dli_fname) return ok(c, false, "dladdr failed");
-    return ok(c, !std::strcmp(i.dli_fname, "/usr/lib/libc++abi.dylib"), i.dli_fname);
+    struct { const char *name; void *p; } fns[] = {
+      {"__cxa_begin_catch", reinterpret_cast<void *>(&__cxa_begin_catch)},
+      {"__cxa_end_catch", reinterpret_cast<void *>(&__cxa_end_catch)},
+      {"__cxa_allocate_exception", reinterpret_cast<void *>(&__cxa_allocate_exception)},
+      {"__cxa_throw", reinterpret_cast<void *>(&__cxa_throw)},
+    };
+    for (auto &f : fns) {
+      Dl_info i;
+      if (!dladdr(f.p, &i) || !i.dli_fname) return ok(c, false, "dladdr failed");
+      if (std::strcmp(i.dli_fname, "/usr/lib/libc++abi.dylib")) {
+        char d[300]; std::snprintf(d, sizeof d, "%s is in %s", f.name, i.dli_fname); return ok(c, false, d);
+      }
+    }
+    return ok(c, true, "__cxa_begin_catch, __cxa_end_catch, __cxa_allocate_exception and __cxa_throw are /usr/lib/libc++abi.dylib's");
   }
   if (!std::strcmp(c, "control-new-new")) {
     try { new_throw_runtime(); } catch (const std::runtime_error &e) { return ok(c, g_dtors == 1, e.what()); }

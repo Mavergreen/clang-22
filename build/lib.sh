@@ -74,6 +74,27 @@ mav_apply_patches() {  # $1 SRC, $2 PATCHDIR
   printf '%s\n' "$_ap_want" > "$1/.mavergreen-patches"
 }
 
+# What libc++ needs from a C++ ABI library beyond 10.9's: link every member of LIBCXX_A into a scratch
+# dylib against the 10.9 SDK's libc++abi and libSystem alone, leaving the rest to be looked up at run
+# time, and print the ABI names among what is left (the others, clock_gettime &c, are Recaulk's general
+# back-fills, which the toolchain's own links prove). CC is a clang that takes --no-default-config.
+mav_libcxx_abi_needs() {  # $1 CC, $2 SDK, $3 libc++.a, $4 scratch dir
+  "$1" --no-default-config --target=x86_64-apple-macos10.9 -isysroot "$2" -mmacosx-version-min=10.9 \
+    -fuse-ld=lld -dynamiclib -nostdlib++ -Wl,-force_load,"$3" -lc++abi -Wl,-undefined,dynamic_lookup \
+    -o "$4/abi-needs.dylib" 2> "$4/abi-needs.err" \
+    || { echo "mav_libcxx_abi_needs: could not link $3 against the 10.9 libc++abi:" >&2; cat "$4/abi-needs.err" >&2; return 1; }
+  "${NM:-nm}" -m "$4/abi-needs.dylib" > "$4/abi-needs.nm" || { echo "mav_libcxx_abi_needs: ${NM:-nm} failed" >&2; return 1; }
+  grep -F '(dynamically looked up)' "$4/abi-needs.nm" | awk '{ print $3 }' | LC_ALL=C sort -u \
+    | grep -E "$MAV_CXXABI_NAMES" || true
+}
+# The C++ ABI library's own names: its functions and globals, the unwinder's, operator new and delete,
+# and the type_info, vtables and names of fundamental and std types it defines.
+MAV_CXXABI_NAMES='^(___cxa_|___gxx_personality|___dynamic_cast|__Unwind_|__Zn[wa]m|__Zd[la]Pv|__ZT[ISV]|__ZNSt[0-9]+(exception|bad_|type_info)|__ZSt(9terminate|10unexpected|13get_terminate|14get_unexpected|13set_terminate|14set_unexpected|15get_new_handler|15set_new_handler))'
+
+# The C++ ABI library's exception machinery: what no image of ours may define, the system's libc++abi
+# being the one C++ ABI. Its __cxa_ functions are the exception, where Recaulk back-fills them.
+MAV_CXXABI_MACHINERY='^(___cxa_|___gxx_personality|___dynamic_cast|__Unwind_|__ZT[ISV]St9exception|__ZNSt9exception|__ZT[ISV]N10__cxxabiv1)'
+
 mav_pin_builtins_min_ver() {  # $1 builtin-config-ix.cmake, $2 version
   case "$2" in
     ''|*[!0-9.]*) echo "mav_pin_builtins_min_ver: '$2' is not a version" >&2; return 1 ;;

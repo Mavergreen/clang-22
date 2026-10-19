@@ -31,6 +31,7 @@ n="$(grep -c '^_' "$T/recaulk" || true)"
 # Recaulk's libc++abi back-fills: the names Wowfunhappy's libc++abi.1.dylib exported that 10.9's lacks.
 grep -E '^(___cxa_|__ZT[IS])' "$T/recaulk" > "$T/recaulk-cxxabi" || true
 [ -s "$T/recaulk-cxxabi" ] || fail "no libc++abi back-fills in $RECAULK_A (older than Recaulk 20261019.1?)"
+grep -v '^#' "$ROOT/build/cxxabi-backfills.txt" > "$T/allowed"
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
 for f in "$SDK/usr/lib/libc++abi.dylib" "$SDK/usr/lib/libc++abi.tbd"; do [ -f "$f" ] && exports "$f" "$T/sys" && break; done
 [ -s "$T/sys" ] || fail "no exports read from the 10.9 SDK's libc++abi"
@@ -43,17 +44,26 @@ for lib in libc++abi.1 libc++.1; do
 
   "$OTOOL" -L "$d" > "$T/L" || fail "$OTOOL -L $d"
   deps="$(tail -n +2 "$T/L" | sed 's/^[[:space:]]*//' | grep -v -F "$want_id " || true)"
-  # lld links a public re-exported library directly too, as ld64 does: libc++ names /usr/lib/libc++abi.dylib.
   case "$lib" in
-    libc++.1) want_deps="$LIBCXX_PREFIX/lib/libc++abi.1.dylib /usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib"; reexp="$LIBCXX_PREFIX/lib/libc++abi.1.dylib" ;;
+    libc++.1) want_deps="$LIBCXX_PREFIX/lib/libc++abi.1.dylib /usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib"
+              reexp="$LIBCXX_PREFIX/lib/libc++abi.1.dylib /usr/lib/libc++abi.dylib" ;;
     libc++abi.1) want_deps="/usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib"; reexp=/usr/lib/libc++abi.dylib ;;
   esac
   [ "$(printf '%s\n' "$deps" | awk '{print $1}' | LC_ALL=C sort)" = "$(printf '%s\n' $want_deps | LC_ALL=C sort)" ] \
     || fail "$lib dependencies:
 $deps"
-  printf '%s\n' "$deps" | grep -F "$reexp " | grep -q 'reexport)$' \
-    || fail "$lib does not reexport $reexp:
+  for r in $reexp; do
+    printf '%s\n' "$deps" | grep -F "$r " | grep -q 'reexport)$' \
+      || fail "$lib does not reexport $r:
 $deps"
+  done
+  # One C++ ABI: neither dylib defines the ABI library's exception machinery, exported or not, but for
+  # the __cxa_ functions Recaulk back-fills (build/cxxabi-backfills.txt), which libc++abi.1 exports.
+  "$NM" -m "$d" > "$T/nm" || fail "$NM -m $d"
+  grep -v '(undefined)' "$T/nm" | awk '{ print $NF }' | grep -E "$MAV_CXXABI_MACHINERY" | LC_ALL=C sort -u > "$T/machinery" || true
+  own="$(LC_ALL=C comm -23 "$T/machinery" "$T/allowed")"
+  [ -z "$own" ] || fail "$lib defines C++ ABI machinery of its own:
+$own"
 
   "$OTOOL" -l "$d" > "$T/lc" || fail "$OTOOL -l $d"
   # The two greps below pass on empty input, so first prove otool printed the load commands.

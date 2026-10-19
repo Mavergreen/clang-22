@@ -81,13 +81,17 @@ for s in $shapes; do
   env=""; [ "$s" = dylib ] && env="$RUN_DYLIB"
   for c in $PASSING; do
     out="$(env $env "$t/interop-$s" "$c" 2>&1)" && rc=0 || rc=$?
-    if [ "$rc" = 0 ] && printf '%s\n' "$out" | grep -q "^PASS $c:"; then echo "ok $s $c"
+    if [ "$rc" = 0 ] && printf '%s\n' "$out" | grep -q "^PASS $c:" && ! printf '%s\n' "$out" | grep -q 'pointer being freed'; then echo "ok $s $c"
     else echo "FAIL $s $c (exit $rc): $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-200)"; fail=1; fi
   done
-  # Meant to call std::terminate, which reports the exception and aborts; a crash elsewhere is a failure.
+  # Meant to call std::terminate, which reports the exception once and aborts: the system's libc++abi's
+  # message, the one runtime's ("libc++abi.dylib: terminating ..." on 10.9, "libc++abi: terminating due
+  # to ..." on current macOS). A crash elsewhere, or a second message, is a failure.
   for c in $TERMINATING; do
     out="$(env $env "$t/interop-$s" "$c" 2>&1)" && rc=0 || rc=$?
-    if [ "$rc" = 134 ] && printf '%s\n' "$out" | grep -q 'terminating'; then echo "ok $s $c (terminated)"
+    if [ "$rc" = 134 ] && [ "$(printf '%s\n' "$out" | grep -c 'terminating')" = 1 ] \
+       && printf '%s\n' "$out" | grep -Eq '^libc\+\+abi(\.dylib)?: terminating' && ! printf '%s\n' "$out" | grep -q 'pointer being freed'; then
+      echo "ok $s $c (terminated)"
     else echo "FAIL $s $c (exit $rc, want std::terminate's abort): $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-200)"; fail=1; fi
   done
 done

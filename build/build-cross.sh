@@ -220,6 +220,23 @@ done
 # and the rest, and it declares what Recaulk back-fills. libunwind.h is the SDK's, the system unwinder's.
 [ -d "$STAGE/include/c++/v1" ] || { echo "FATAL: no libc++ headers at $STAGE/include/c++/v1" >&2; exit 1; }
 cp "$SRC/libcxxabi/include/cxxabi.h" "$SRC/libcxxabi/include/__cxxabi_config.h" "$STAGE/include/c++/v1/"
+# ONE C++ ABI, held every build (step 3). What libc++ needs from a libc++abi beyond 10.9's must be on
+# build/cxxabi-backfills.txt, the list Recaulk back-fills, and Recaulk's set must be exactly that list:
+# an LLVM that needs one more fails here, naming it, rather than at a user's link. And libc++.a must
+# define none of the ABI library's own exception machinery, which a flag change bundling a libc++abi
+# into it again would bring back.
+ABI_CHECK="$WORK/abi-check"; rm -rf "$ABI_CHECK"; mkdir -p "$ABI_CHECK"
+grep -v '^#' "$HERE/cxxabi-backfills.txt" > "$ABI_CHECK/allowed"
+mav_libcxx_abi_needs "$STAGE/bin/clang" "$SDK" "$RTDIR/libc++.a" "$ABI_CHECK" > "$ABI_CHECK/needs" || exit 1
+extra="$(LC_ALL=C comm -23 "$ABI_CHECK/needs" "$ABI_CHECK/allowed")"
+[ -z "$extra" ] || { echo "FATAL: libc++ needs C++ ABI entry points that 10.9's libc++abi lacks and build/cxxabi-backfills.txt does not list (back-fill them in Recaulk, then list them): $extra" >&2; exit 1; }
+mav_export_list "$RECAULK_A" | grep -E '^(___cxa_|__ZT[IS])' > "$ABI_CHECK/recaulk" || true
+cmp -s "$ABI_CHECK/allowed" "$ABI_CHECK/recaulk" \
+  || { echo "FATAL: Recaulk $RECAULK_VERSION's libc++abi back-fills differ from build/cxxabi-backfills.txt:" >&2; diff "$ABI_CHECK/allowed" "$ABI_CHECK/recaulk" >&2; exit 1; }
+"${NM:-nm}" -m "$RTDIR/libc++.a" > "$ABI_CHECK/libcxx.nm" 2>/dev/null || { echo "FATAL: ${NM:-nm} -m failed on $RTDIR/libc++.a" >&2; exit 1; }
+own="$(grep -v '(undefined)' "$ABI_CHECK/libcxx.nm" | awk '{ print $NF }' | grep -E "$MAV_CXXABI_MACHINERY" | LC_ALL=C sort -u || true)"
+[ -z "$own" ] || { echo "FATAL: libc++.a defines C++ ABI machinery, so a second libc++abi would ship:" >&2; printf '%s\n' "$own" >&2; exit 1; }
+echo "    C++ ABI: libc++ needs $(wc -l < "$ABI_CHECK/needs" | tr -d ' ') back-filled name(s) beyond 10.9's libc++abi, defines none of its own"
 RTREL="${RTDIR#"$STAGE"/}"          # e.g. lib/x86_64-apple-macos10.9
 echo "    target C++ runtime: $RTREL"
 
