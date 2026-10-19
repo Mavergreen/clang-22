@@ -505,7 +505,7 @@ jobs:
   # test run there natively against the installed layout; publish waits for them. Under Rosetta on
   # macos-26 the build jobs prove the same shape against a modern libc++abi and dyld, which neither
   # bug needs to show itself. The guest has no Command Line Tools: every compile in it is the clang22
-  # just installed, which needs Longboat's sdk109 (`longboat install 10.9`) before its pkg installs. A
+  # just installed, which needs Longboat's sdk109 (`longboat sdk install 10.9`) before its pkg installs. A
   # test's 77, its skip, is a failure here.
   on-mavericks:
     needs: [build-cross, build-native]
@@ -543,7 +543,7 @@ jobs:
             sw_vers
             sudo -n true || { echo "the guest's user cannot sudo without a password, and installer needs root"; exit 1; }
             for p in deps/longboat-*.pkg; do sudo installer -pkg "$p" -target /; done
-            sudo /usr/local/mavergreen/longboat/bin/longboat install 10.9
+            sudo /usr/local/mavergreen/longboat/bin/longboat sdk install 10.9
             for p in dist/*native*.pkg dist/libcxx*.pkg; do sudo installer -pkg "$p" -target /; done
             export SHIPYARD_SCRIPTS="$PWD/.shipyard-scripts"
             must() { status=0; "$@" || status=$?; [ "$status" -eq 0 ] || { echo "$* exited $status (77, a skip, is a failure here)"; exit 1; }; }
