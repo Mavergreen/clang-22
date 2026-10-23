@@ -7,4 +7,4 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/versions.sh"
 . "$SHIPYARD_SCRIPTS/sdk-pins.sh"
 SDK_PIN="$(shipyard_sdk_pin x86_64)"; export SDK_PIN
-exec python3 "$HERE/target-manifest.py" "$@"
+exec python3 "$HERE/target_manifest.py" "$@"
