@@ -1,5 +1,8 @@
 name: linux-bootstrap
 on:
+  push:
+    branches: [linux-host]
+    paths: [.github/workflows/linux-bootstrap.yml]
   workflow_dispatch:
 permissions:
   contents: read
