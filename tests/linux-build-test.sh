@@ -3,7 +3,7 @@
 set -eu
 [ "$(uname -s)" = Linux ] || { echo 'SKIP: ELF audit fixture requires Linux'; exit 77; }
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
+T="$(mktemp -d "${TMPDIR:-/tmp}/linux-host.XXXXXX")"; trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/prefix/bin"
 printf 'int main(void) { return 0; }\n' > "$T/main.c"
 cc "$T/main.c" -o "$T/prefix/bin/tool"
