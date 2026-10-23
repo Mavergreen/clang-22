@@ -8,6 +8,8 @@ mkdir -p "$T/prefix/bin"
 printf 'int main(void) { return 0; }\n' > "$T/main.c"
 cc "$T/main.c" -o "$T/prefix/bin/tool"
 sh "$ROOT/build/verify-linux-host.sh" "$T/prefix"
+cc "$T/main.c" -Wl,--dynamic-linker=/missing/host/ld-linux-x86-64.so.2 -o "$T/prefix/bin/tool"
+if sh "$ROOT/build/verify-linux-host.sh" "$T/prefix"; then echo 'FAIL: accepted missing ELF loader'; exit 1; fi
 cc "$T/main.c" -Wl,-rpath,/tmp/build-only -o "$T/prefix/bin/tool"
 if sh "$ROOT/build/verify-linux-host.sh" "$T/prefix"; then echo 'FAIL: accepted absolute build RPATH'; exit 1; fi
 cc "$T/main.c" -o "$T/prefix/bin/tool"

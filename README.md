@@ -51,7 +51,9 @@ Run `hello-mavericks` on Mavericks. For CMake projects, pass shipyard's
 `MavericksToolchain.cmake`, `CMAKE_C_COMPILER=$TC/bin/clang`,
 `CMAKE_CXX_COMPILER=$TC/bin/clang++`, and the colocated LLVM archive/readers explicitly.
 Configure cannot execute target programs on Linux; test them on the target instead.
-If the SDK cache moves, rerun `setup-sdk` with the new verified SDK path.
+Keep the pinned SDK archive beside its extracted directory in the fetch cache: `setup-sdk`
+checks the archive digest and extracted contents before linking it. If the SDK cache moves,
+rerun `setup-sdk` with the new SDK path.
 
 Maintainers build the Linux host tools using `build/linux/Dockerfile` and its pinned base
 image/package lock. The first bootstrap is GCC 12.3; LLVM source signatures and every

@@ -505,6 +505,7 @@ jobs:
           tar -xzf inputs/linux-results.tar.gz
           TC="$RUNNER_TEMP/current compiler/opt/mavergreen/clang22"; export TC
           sh build/verify-linux-host.sh "$TC"
+          sh build/probe-linux-tools.sh "$TC"
           "$TC/bin/setup-sdk" "$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
           export NM="$TC/bin/llvm-nm" LIPO="$TC/bin/llvm-lipo" OTOOL="$TC/bin/llvm-otool" STRINGS="$TC/bin/llvm-strings"
           sh tests/smoke-target.sh

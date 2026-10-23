@@ -3,7 +3,7 @@
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; export ROOT
 python3 - <<'PY'
-import os, pathlib, tempfile, subprocess, json, plistlib
+import os, pathlib, tempfile, subprocess, json, plistlib, tarfile, hashlib
 root=pathlib.Path(os.environ['ROOT'])
 with tempfile.TemporaryDirectory(prefix='linux assembly ') as t:
     t=pathlib.Path(t); host=t/'host'; export=t/'export'; out=t/'relocated compiler'
@@ -33,7 +33,18 @@ with tempfile.TemporaryDirectory(prefix='linux assembly ') as t:
     (sdk/'usr/lib').mkdir(parents=True);(sdk/'usr/lib/libSystem.dylib').write_text('stub')
     assert not run(False)
     (sdk/'SDKSettings.plist').write_bytes(plistlib.dumps({'Version':'10.9'}))
+    assert not run(False), 'unverified SDK directory accepted'
+    header=sdk/'usr/include/test.h';header.parent.mkdir();header.write_text('pinned header')
+    archive=t/'MacOSX10.9.sdk.tar.xz'
+    with tarfile.open(archive,'w:xz') as a:a.add(real_sdk,arcname='MacOSX10.9.sdk')
+    identity_file=out/'share/clang22/identity.json'
+    identity=json.loads(identity_file.read_text())
+    identity['sdk']='https://example.invalid/sdk '+hashlib.sha256(archive.read_bytes()).hexdigest()+' MacOSX10.9.sdk.tar.xz MacOSX10.9.sdk'
+    identity_file.write_text(json.dumps(identity))
     assert run(True)
     assert (out/'SDKs/MacOSX10.9.sdk').resolve()==sdk.resolve()
+    header.write_text('corrupted header')
+    assert not run(False), 'reused SDK header corruption accepted'
+
 print('PASS: assembly identity, target contents, linker and SDK setup')
 PY

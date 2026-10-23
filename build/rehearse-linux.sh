@@ -8,6 +8,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 TC="$WORK/relocated compiler"; export TC
 sh "$HERE/assemble-linux.sh" "$WORK/linux-host" "$1" "$TC"
 sh "$HERE/verify-linux-host.sh" "$TC"
+sh "$HERE/probe-linux-tools.sh" "$TC"
 "$TC/bin/setup-sdk" "$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
 NM="$TC/bin/llvm-nm"; LIPO="$TC/bin/llvm-lipo"; OTOOL="$TC/bin/llvm-otool"; STRINGS="$TC/bin/llvm-strings"
 export NM LIPO OTOOL STRINGS

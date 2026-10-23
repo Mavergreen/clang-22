@@ -75,5 +75,6 @@ int main() {
 }
 EOF
 "$TC/bin/clang++" -std=c++17 -O1 -Wno-underaligned-exception-object "$t/r.cpp" -o "$t/r"
+"$TC/bin/clang++" -std=c++17 -O1 -Wno-underaligned-exception-object "$t/c.cpp" -o "$t/wide"
 target_finish catch-align
 echo "PASS: catch alignment"
