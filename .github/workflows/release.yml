@@ -225,6 +225,16 @@ jobs:
       - name: One C++ ABI across our code, the system's C++ and Cocoa
         run: sh tests/cxxabi-interop-test.sh
 
+      - name: Export matching libcxx22 test libraries
+        run: |
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          tar -czf "$RUNNER_TEMP/libcxx-test.tar.gz" -C "$LIBCXX_STAGE" lib
+      - uses: actions/upload-artifact@v7
+        with:
+          name: clang22-libcxx-test
+          path: ${{ runner.temp }}/libcxx-test.tar.gz
+          if-no-files-found: error
+
       - name: Build the libcxx22 Sparkle updater (x86_64/10.9)
         run: |
           set -eu
@@ -410,8 +420,100 @@ jobs:
         run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh"
 
   # Both variants exist only here, so this is the only place conformance can compare them.
+  build-linux:
+    needs: [build-cross]
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+      - uses: actions/download-artifact@v8
+        with: { name: clang22-target-export, path: inputs }
+      - uses: actions/download-artifact@v8
+        with: { name: clang22-libcxx-test, path: inputs }
+      - name: Prepare matching build inputs
+        env:
+          BUILD_VERSION: ${{ needs.build-cross.outputs.version }}
+        run: |
+          printf '%s\n' "$BUILD_VERSION" > VERSION
+          mkdir -p "$RUNNER_TEMP/linux-work/test-libcxx"
+          tar -xzf inputs/target-export.tar.gz -C "$RUNNER_TEMP/linux-work"
+          tar -xzf inputs/libcxx-test.tar.gz -C "$RUNNER_TEMP/linux-work/test-libcxx"
+          docker build --build-arg "BASE_IMAGE=$(cat build/linux/base-image)" -t clang22-linux-build build/linux
+      - name: Build and rehearse on the supported baseline
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -v "$SHIPYARD_SCRIPTS:/shipyard:ro" \
+            -v "$RUNNER_TEMP/linux-work:/work" -w /src \
+            -e SHIPYARD_SCRIPTS=/shipyard -e MAVERICKS_WORK=/work \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+            clang22-linux-build sh -c 'sh build/build-linux.sh && sh build/rehearse-linux.sh /work/target-export /work/test-libcxx/lib'
+      - name: Package saved target witnesses
+        run: tar -czf "$RUNNER_TEMP/linux-witnesses.tar.gz" -C "$RUNNER_TEMP/linux-work" witnesses
+      - uses: actions/upload-artifact@v7
+        with:
+          name: variant-linux
+          path: ${{ runner.temp }}/linux-work/linux-dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-witnesses
+          path: ${{ runner.temp }}/linux-witnesses.tar.gz
+          if-no-files-found: error
+
+  on-linux-mavericks:
+    needs: [build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v8
+        with: { name: linux-witnesses, path: inputs }
+      - run: tar -xzf inputs/linux-witnesses.tar.gz
+      - name: Run Linux-built witnesses on Mavericks
+        uses: Mavergreen/mavericks-vm@v1
+        with:
+          image-key: ${{ secrets.MAVERICKS_VM_KEY }}
+          cpu: '4'
+          mem: '8192'
+          run: sh tests/target/runner.sh witnesses
+      - run: tar -czf "$RUNNER_TEMP/linux-results.tar.gz" witnesses
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-target-results
+          path: ${{ runner.temp }}/linux-results.tar.gz
+          if-no-files-found: error
+
+  verify-linux:
+    needs: [build-linux, on-linux-mavericks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+      - uses: actions/download-artifact@v8
+        with: { name: variant-linux, path: inputs }
+      - uses: actions/download-artifact@v8
+        with: { name: linux-target-results, path: inputs }
+      - name: Verify on current Ubuntu and read target profile counts
+        run: |
+          mkdir -p "$RUNNER_TEMP/current compiler"
+          tar -xzf inputs/clang22-*-linux-x86_64.tar.gz -C "$RUNNER_TEMP/current compiler"
+          tar -xzf inputs/linux-results.tar.gz
+          TC="$RUNNER_TEMP/current compiler/opt/mavergreen/clang22"; export TC
+          sh build/verify-linux-host.sh "$TC"
+          "$TC/bin/setup-sdk" "$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
+          export NM="$TC/bin/llvm-nm" LIPO="$TC/bin/llvm-lipo" OTOOL="$TC/bin/llvm-otool" STRINGS="$TC/bin/llvm-strings"
+          sh tests/smoke-target.sh
+          sh tests/support/verify-profile.sh "$TC" "$PWD/witnesses/profile"
+          printf 'PASS catch-align\nPASS weak-bind\nPASS cxxabi\nPASS profile\n' > expected-results
+          cmp expected-results witnesses/results.txt
+
   collect:
-    needs: [build-cross, build-native]
+    needs: [build-cross, build-native, build-linux]
     runs-on: macos-26   # pkgutil-based conformance needs macOS
     outputs:
       version: ${{ needs.build-cross.outputs.version }}
@@ -431,6 +533,9 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with: { name: variant-libcxx, path: dist }
+
+      - uses: actions/download-artifact@v8
+        with: { name: variant-linux, path: dist }
 
       # The body travels IN the artifact: publish-release.yml does not check out the repo. One call
       # writes the file both sign_and_appcast.sh invocations below (native + cross) and the Release
@@ -514,6 +619,8 @@ jobs:
             dist/build-info-*.txt
             dist/clang22*.xml
             dist/libcxx22*.xml
+            dist/clang22-*-linux-x86_64.tar.gz
+            dist/clang22-*-linux-x86_64.manifest.json
 
   # The one place 10.9's own libc++abi and dyld meet what this release ships. The native toolchain and
   # libcxx22 are installed on a Mac OS X 10.9.5 guest, and the C++ ABI crash matrix and the weak-binding
@@ -589,7 +696,7 @@ jobs:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
   publish:
-    needs: [collect, scan, on-mavericks]
+    needs: [collect, scan, on-mavericks, verify-linux]
     if: needs.collect.outputs.publish == 'yes'
     permissions:
       contents: write
