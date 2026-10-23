@@ -348,4 +348,5 @@ $slices
 EOF
 done
 
+sh "$HERE/target-manifest.sh" record "$STAGE"
 echo "OK: staged cross toolchain at $STAGE"

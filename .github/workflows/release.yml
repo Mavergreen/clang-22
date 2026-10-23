@@ -136,6 +136,21 @@ jobs:
           [ -x "$MAVERICKS_WORK/stage$CROSS_PREFIX/bin/clang" ] \
             || { echo "::error::cross build produced no staged clang"; exit 1; }
 
+      - name: Export validated Mavericks target files
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          sh build/export-target.sh "$MAVERICKS_WORK/stage$CROSS_PREFIX" "$MAVERICKS_WORK/target-export"
+          sh build/target-manifest.sh verify "$MAVERICKS_WORK/target-export"
+          tar -czf "$MAVERICKS_WORK/target-export.tar.gz" -C "$MAVERICKS_WORK" target-export
+
+      - name: Upload Mavericks target export
+        uses: actions/upload-artifact@v7
+        with:
+          name: clang22-target-export
+          path: ${{ env.MAVERICKS_WORK }}/target-export.tar.gz
+          if-no-files-found: error
+
       - name: Relocatability gate
         run: |
           set -eu
