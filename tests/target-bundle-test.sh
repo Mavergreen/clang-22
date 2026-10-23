@@ -30,6 +30,17 @@ else:
  assert not (t/'executed').exists(),'build phase executed a target binary on the host'
  assert (t/'bundle/catch-align/r').is_file(),'build phase did not retain target binary'
  assert (t/'bundle/catch-align/run.sh').is_file(),'no portable target runner'
+ assert (t/'bundle/catch-align/wide').is_file(),'build phase did not retain aligned-class witness'
+ # Exercise the saved runner with controlled outputs, without executing Mach-O on this host.
+ case=t/'bundle/catch-align'
+ (case/'r').write_text('#!/bin/sh\necho caught 5\n')
+ (case/'wide').write_text('#!/bin/sh\necho wrong\n')
+ r=subprocess.run(['sh',str(case/'run.sh')],capture_output=True,text=True)
+ assert r.returncode!=0,'aligned-class runtime failure was ignored'
+ (case/'wide').write_text('#!/bin/sh\n[ "$1" = wide ] || exit 2\necho caught 6\n')
+ r=subprocess.run(['sh',str(case/'run.sh')],capture_output=True,text=True)
+ assert r.returncode==0,(r.stdout,r.stderr)
+
  r=subprocess.run(['sh',str(root/'tests/cxxabi-interop-test.sh')],env=env,capture_output=True,text=True)
  assert r.returncode==0,(r.stdout,r.stderr)
  assert not (t/'executed').exists(),'interop build phase executed target code'

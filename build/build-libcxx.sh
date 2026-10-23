@@ -26,7 +26,7 @@
 #   -reexport_library         libc++ re-exports libc++abi.1, as Apple's and Wowfunhappy's do, by
 #                             @loader_path/libc++abi.1.dylib: ld64.lld resolves a re-export only by its
 #                             recorded path, so an absolute one failed every link against a libcxx22
-#                             not installed at its prefix (a fetched one on CI; shipyard QUEUE #86),
+#                             not installed at its prefix (a fetched one on CI),
 #                             and @loader_path is beside libc++ wherever it sits. dyld has it since
 #                             10.4. lld records the re-exported dylib's install name and has no
 #                             -dylib_file, so libc++ links against a scratch libc++abi.1 named so;

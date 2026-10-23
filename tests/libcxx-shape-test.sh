@@ -45,7 +45,7 @@ for lib in libc++abi.1 libc++.1; do
   "$OTOOL" -L "$d" > "$T/L" || fail "$OTOOL -L $d"
   deps="$(tail -n +2 "$T/L" | sed 's/^[[:space:]]*//' | grep -v -F "$want_id " || true)"
   case "$lib" in
-    # libc++abi.1 by @loader_path, so lld finds it beside libc++ wherever libcxx22 sits (QUEUE #86).
+    # libc++abi.1 by @loader_path, so lld finds it beside libc++ wherever libcxx22 sits.
     libc++.1) want_deps="@loader_path/libc++abi.1.dylib /usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib"
               reexp="@loader_path/libc++abi.1.dylib /usr/lib/libc++abi.dylib" ;;
     libc++abi.1) want_deps="/usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib"; reexp=/usr/lib/libc++abi.dylib ;;
