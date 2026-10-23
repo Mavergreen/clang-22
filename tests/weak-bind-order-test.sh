@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: macOS-only -- links with the toolchain's ld64.lld and reads the result with llvm-objdump
+# platform: host-agnostic
 # SKIP (77) until a toolchain is staged. ld64.lld must write a program's weak binding info sorted by
 # symbol name, as ld64 does (patches/0002). dyld before dyld3, 10.9's among them, coalesces weak
 # symbols across images by merging every image's weak binding info as name-sorted streams: an image
@@ -17,7 +17,8 @@ TC="${TC:-$WORK/stage$CROSS_PREFIX}"
 [ -x "$TC/bin/clang" ] && [ -x "$TC/bin/ld64.lld" ] || { echo "not built -- skipping"; exit 77; }
 OBJDUMP="$TC/bin/llvm-objdump"; [ -x "$OBJDUMP" ] || { echo "FAIL: no llvm-objdump in $TC/bin"; exit 1; }
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
-t="$(mktemp -d "${TMPDIR:-/tmp}/weak-bind.XXXXXX")"; trap 'rm -rf "$t"' EXIT
+. "$HERE/support/target-test-lib.sh"
+target_workspace weak-bind
 fail() { echo "FAIL: $*"; exit 1; }
 
 # Weak definitions whose addresses run opposite to their names: z_first is laid out first, a_last last.
@@ -48,7 +49,7 @@ int main(void) {
 EOF
 # --ld-path, not -fuse-ld=lld: the driver would take the ld64.lld beside the clang it resolves to.
 cc() { "$TC/bin/clang" --no-default-config --target="$TARGET_TRIPLE" -isysroot "$SDK" -mmacosx-version-min="$MACOS_MIN" --ld-path="$TC/bin/ld64.lld" "$@"; }
-cc -dynamiclib "$t/weak.c" -o "$t/libweak.dylib" -install_name "$t/libweak.dylib"
+cc -dynamiclib "$t/weak.c" -o "$t/libweak.dylib" -install_name @loader_path/libweak.dylib
 cc "$t/main.c" "$t/libweak.dylib" -o "$t/main"
 
 for f in "$t/libweak.dylib" "$t/main"; do
@@ -59,8 +60,5 @@ for f in "$t/libweak.dylib" "$t/main"; do
 done
 echo "ok: weak binding info sorted by name"
 
-if [ "$(uname -m)" = x86_64 ] || arch -x86_64 /usr/bin/true 2>/dev/null; then
-  out="$("$t/main" 2>&1)" || fail "dyld did not coalesce the weak symbols: $out"
-  echo "ok: $out"
-fi
+target_finish weak-bind
 echo "PASS: weak bind order"

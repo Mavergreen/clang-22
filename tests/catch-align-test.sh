@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: macOS-only -- compiles with the toolchain's clang, runs x86_64 where it can
+# platform: host-agnostic
 # SKIP (77) until a toolchain is staged. A value caught by value must be read at no more than the
 # alignment the exception object has (patches/0003). Before macOS 10.14, libc++abi places a thrown object
 # 8 bytes past a 16-byte boundary, and clang knows it (getExnObjectAlignment is 8 there, and the throw
@@ -19,7 +19,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
 TC="${TC:-$WORK/stage$CROSS_PREFIX}"
 [ -x "$TC/bin/clang++" ] || { echo "not built -- skipping"; exit 77; }
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
-t="$(mktemp -d "${TMPDIR:-/tmp}/catch-align.XXXXXX")"; trap 'rm -rf "$t"' EXIT
+. "$HERE/support/target-test-lib.sh"
+target_workspace catch-align
 fail() { echo "FAIL: $*"; exit 1; }
 
 cat > "$t/c.cpp" <<'EOF'
@@ -73,9 +74,6 @@ int main() {
   try { throw (__int128)5; } catch (__int128 v) { std::printf("caught %s\n", v == 5 ? "5" : "a wrong value"); return v == 5 ? 0 : 1; }
 }
 EOF
-if [ "$(uname -m)" = x86_64 ] || arch -x86_64 /usr/bin/true 2>/dev/null; then
-  "$TC/bin/clang++" -std=c++17 -O1 -Wno-underaligned-exception-object "$t/r.cpp" -o "$t/r"
-  out="$("$t/r" 2>&1)" || fail "catching an __int128 by value failed (exit $?): $out"
-  echo "ok: run: $out"
-fi
+"$TC/bin/clang++" -std=c++17 -O1 -Wno-underaligned-exception-object "$t/r.cpp" -o "$t/r"
+target_finish catch-align
 echo "PASS: catch alignment"
