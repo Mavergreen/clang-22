@@ -15,7 +15,7 @@
 #   TC=/usr/local/mavergreen/clang22 LIBCXX_LIB=/usr/local/mavergreen/libcxx22/lib sh tests/libcxx-runtime-test.sh
 # proves the program runs with no DYLD_*. Every run links with no -syslibroot of its own: libc++
 # re-exports libc++abi.1 as @loader_path/libc++abi.1.dylib, which lld resolves beside libc++ wherever it
-# is, so a staged or fetched libcxx22 links as an installed one does (shipyard QUEUE #86).
+# is, so a staged or fetched libcxx22 links as an installed one does.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
 . "$ROOT/build/versions.sh"

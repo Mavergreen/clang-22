@@ -35,5 +35,6 @@ for tool in clang clang++ ld64.lld llvm-ar llvm-ranlib llvm-lipo llvm-otool llvm
   [ -x "$PREFIX/bin/$tool" ] || { echo "build-linux: missing installed $tool" >&2; exit 1; }
 done
 sh "$HERE/verify-linux-host.sh" "$PREFIX"
+sh "$HERE/probe-linux-tools.sh" "$PREFIX"
 sh "$HERE/target-manifest.sh" record "$PREFIX"
 echo "OK: staged Linux tools at $PREFIX"

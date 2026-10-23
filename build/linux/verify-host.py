@@ -18,10 +18,13 @@ def inspect(prefix):
             if stream.read(4) != b'\x7fELF':
                 continue
         count += 1
-        text = subprocess.check_output(['readelf', '-W', '-h', '-d', '-V', str(path)],
+        text = subprocess.check_output(['readelf', '-W', '-h', '-l', '-d', '-V', str(path)],
                                        text=True, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
         if not re.search(r'Class:\s+ELF64', text) or not re.search(r'Machine:\s+Advanced Micro Devices X86-64', text):
             raise ValueError(f'{path}: not x86_64 ELF64')
+        interpreters = re.findall(r'Requesting program interpreter: ([^]]+)\]', text)
+        if any(loader != '/lib64/ld-linux-x86-64.so.2' for loader in interpreters):
+            raise ValueError(f'{path}: unsupported ELF interpreter {interpreters}')
         for version in re.findall(r'\bGLIBC_(\d+(?:\.\d+)+)', text):
             if tuple(map(int, version.split('.'))) > (2, 35):
                 raise ValueError(f'{path}: requires GLIBC_{version}, floor is 2.35')
