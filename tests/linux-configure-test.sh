@@ -2,7 +2,7 @@
 # platform: host-agnostic
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
+T="$(mktemp -d "${TMPDIR:-/tmp}/linux-host.XXXXXX")"; trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/src/llvm"
 cat > "$T/bin/cmake" <<'SH'
 #!/bin/sh

@@ -20,7 +20,6 @@ target_finish() {
   if [ "$TEST_PHASE" = build ]; then
     echo "built target witness: $t"
   else
-    [ "$(uname -s)" = Darwin ] || { echo 'target tests require Darwin' >&2; exit 77; }
-    sh "$t/run.sh"
+    sh "$HERE/target/host-run.sh" "$1" "$t"
   fi
 }
