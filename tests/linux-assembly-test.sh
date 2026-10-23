@@ -25,7 +25,8 @@ with tempfile.TemporaryDirectory(prefix='linux assembly ') as t:
     assert not (out/'SDKs').exists()
     ident=host/'.target-identity';d=json.loads(ident.read_text());d['revision']='wrong';ident.write_text(json.dumps(d))
     call('assemble-linux.sh',host,export,t/'bad',good=False)
-    sdk=t/'sdk';sdk.mkdir()
+    real_sdk=t/'real-sdk';real_sdk.mkdir()
+    sdk=t/'sdk';sdk.symlink_to(real_sdk,target_is_directory=True)
     run=lambda good: subprocess.run([str(out/'bin/setup-sdk'),str(sdk)],capture_output=True).returncode==0
     assert not run(False)
     (sdk/'SDKSettings.plist').write_bytes(plistlib.dumps({'Version':'11.3'}))
@@ -33,6 +34,6 @@ with tempfile.TemporaryDirectory(prefix='linux assembly ') as t:
     assert not run(False)
     (sdk/'SDKSettings.plist').write_bytes(plistlib.dumps({'Version':'10.9'}))
     assert run(True)
-    assert (out/'SDKs/MacOSX10.9.sdk').resolve()==sdk
+    assert (out/'SDKs/MacOSX10.9.sdk').resolve()==sdk.resolve()
 print('PASS: assembly identity, target contents, linker and SDK setup')
 PY
