@@ -22,8 +22,8 @@ sh "$HERE/configure-linux.sh" "$SRC" "$BLD" "$PREFIX"
 if [ -n "${MAVERICKS_JOBS:-}" ]; then jobs=$MAVERICKS_JOBS
 else
   cores="$(getconf _NPROCESSORS_ONLN)"
-  memjobs="$(awk '/MemAvailable:/ { n=int($2/3145728); print n > 0 ? n : 1 }' /proc/meminfo)"
-  jobs=$cores; [ "$memjobs" -ge "$cores" ] || jobs=$memjobs
+  memory="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
+  jobs="$(sh "$HERE/linux-jobs.sh" "$cores" "$memory")"
 fi
 case "$jobs" in ''|*[!0-9]*|0) echo "build-linux: invalid job count '$jobs'" >&2; exit 2 ;; esac
 TOOLS='clang lld llvm-ar llvm-ranlib llvm-lipo llvm-otool llvm-nm llvm-strings llvm-strip llvm-objdump llvm-readobj llvm-profdata llvm-cov'
