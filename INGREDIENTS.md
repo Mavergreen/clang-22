@@ -151,3 +151,12 @@ Machine-read by `artifact-facts.sh` as `- <check>:<glob> : <reason>` (one line e
   produces the same staged, relocatable toolchain and passes the same gates. `native-bootstrap/` is
   not that path: it is Wowfunhappy's original climb from Apple's clang-3.5 seed,
   kept for history. Ends when that native mode exists and is checked against a CI build.
+
+### Linux host variant (in development)
+
+The Linux x86_64 tarball serves developers producing Mavericks artifacts on Linux.
+It shares this release's LLVM source, patches, Recaulk and target-file export; the SDK
+remains separately fetched. Host bootstrap inputs are locked in `build/linux/base-image`
+and `build/linux/packages.lock` (Ubuntu 22.04, GCC 12.3). This is an explicit initial
+Linux bootstrap exception to clang22 N−1: revisit once the first supported Linux clang22
+release is available. No Linux arm64 variant or distro package is shipped.

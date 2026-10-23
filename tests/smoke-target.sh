@@ -11,7 +11,7 @@ set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
 . "$ROOT/build/versions.sh"
 : "${SHIPYARD_SCRIPTS:?need shipyard}"
-STAGE="$WORK/stage$CROSS_PREFIX"
+STAGE="${TC:-$WORK/stage$CROSS_PREFIX}"
 CLANGXX="$STAGE/bin/clang++"
 [ -x "$CLANGXX" ] || { echo "not built -- skipping"; exit 77; }
 
@@ -29,7 +29,7 @@ cat > "$t/hello.cpp" <<'EOF'
 int main(){ std::cout << "hello mavericks\n"; return 0; }
 EOF
 "$CLANGXX" "$t/hello.cpp" -o "$t/hello"
-lipo -info "$t/hello" | sed -n 's/.*: //p' | grep -qw x86_64 || { echo "FAIL: not x86_64"; exit 1; }
+"$STAGE/bin/llvm-lipo" -info "$t/hello" | sed -n 's/.*: //p' | grep -qw x86_64 || { echo "FAIL: not x86_64"; exit 1; }
 # clang++.cfg links libobjc and three frameworks for librecaulk's members; -dead_strip_dylibs must
 # drop every one hello does not use, as clang.cfg does for C, so it depends on libSystem and the
 # system's libc++abi (the one C++ ABI, build-cross.sh step 3) alone, both on every macOS since 10.7.
