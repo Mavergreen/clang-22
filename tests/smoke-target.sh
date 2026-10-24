@@ -67,6 +67,22 @@ else
   echo "note: x86_64 does not run here; over-aligned allocation compiled, not run"
 fi
 
+# std::cout from a global constructor (patches/0006). libc++.a is appended last, and Mach-O orders
+# initializers by input order (init_priority only orders them within one object), so libc++'s own
+# stream initializer ran after the program's: the write crashed (exit 139 on 10.9.5). With libc++ as a
+# dylib, dyld initializes it first, which is why Apple's toolchain never meets this.
+cat > "$t/early.cpp" <<'EOF'
+#include <iostream>
+struct Early { Early() { std::cout << "early "; } } early;
+int main() { std::cout << "main\n"; return 0; }
+EOF
+"$CLANGXX" -std=c++17 "$t/early.cpp" -o "$t/early"
+if [ "$(uname -m)" = x86_64 ] || arch -x86_64 /usr/bin/true 2>/dev/null; then
+  out="$("$t/early")" || { echo "FAIL: std::cout from a global constructor crashed"; exit 1; }
+  [ "$out" = 'early main' ] || { echo "FAIL: std::cout from a global constructor: $out"; exit 1; }
+  echo "ok: std::cout from a global constructor"
+fi
+
 # Sized deallocation, the same kind of gate (off below 10.12): a delete must call the sized operator.
 printf 'struct S { long v[4]; };\nvoid drop(S *p) { delete p; }\n' > "$t/sized.cpp"
 "$CLANGXX" -std=c++17 -c "$t/sized.cpp" -o "$t/sized.o"

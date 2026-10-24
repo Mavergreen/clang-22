@@ -1,0 +1,35 @@
+Mavergreen's own: every file that includes libc++'s <iostream> constructs a std::ios_base::Init, as
+libstdc++'s does, so the standard streams exist before that file's global constructors run.
+
+Why: clang22 links libc++ statically (clang++.cfg's portable-ld appends libc++.a after the program's
+objects). Mach-O runs initializers in link order across objects; libc++'s init_priority(100) on its
+stream initializer orders it only within its own object. So libc++'s streams were constructed after the
+program's global constructors, and one that wrote to std::cout crashed (exit 139 on 10.9.5; libc++'s own
+ios_Init.global.pass.cpp and iostream.objects/init.pass.cpp found it). Linked to libc++ as a dylib, dyld
+initializes the library first, which is why Apple's toolchain, and upstream's tests on Apple, never meet
+this. ios_base::Init::Init constructs the streams once, so the extra objects are cheap and harmless with
+the libcxx22 dylib too.
+
+Upstream's static-libc++ users on Apple would want it as well; to offer if upstream agrees on the shape.
+
+tests/smoke-target.sh is the regression test (a program that writes to std::cout from a global
+constructor, built with no flags and run where x86_64 runs).
+
+--- a/libcxx/include/iostream
++++ b/libcxx/include/iostream
+@@ -65,6 +65,15 @@
+ extern _LIBCPP_EXPORTED_FROM_ABI wostream wclog;
+ #  endif
+ 
++// Mach-O orders initializers across objects by link order (init_priority orders them only within one),
++// so with libc++ linked statically, after the program's objects, the streams were constructed after the
++// program's own global constructors ran, and using them there crashed. As libstdc++ does, every file
++// that includes <iostream> constructs an Init first; Init constructs the streams only once.
++// Mavergreen's own (patches/0006).
++#  if defined(__APPLE__) && !defined(_LIBCPP_BUILDING_LIBRARY)
++static ios_base::Init __mavergreen_ioinit;
++#  endif
++
+ _LIBCPP_END_NAMESPACE_STD
+ 
+ #endif // __cplusplus < 201103L && defined(_LIBCPP_USE_FROZEN_CXX03_HEADERS)
