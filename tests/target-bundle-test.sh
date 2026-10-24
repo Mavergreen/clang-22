@@ -15,7 +15,10 @@ with tempfile.TemporaryDirectory() as tmp:
  compiler.write_text('''#!/usr/bin/env python3
 import os,sys,pathlib
 args=sys.argv[1:]; output=pathlib.Path(args[args.index('-o')+1])
-if '-emit-llvm' in args:
+if '-emit-llvm' in args and any(a.endswith('/m.cpp') for a in args):
+ inplace='--target=x86_64-apple-macos10.14' in args
+ output.write_text('call ptr @__cxa_init_primary_exception(\\n' if inplace else 'call void @__cxa_throw(\\n')
+elif '-emit-llvm' in args:
  alignment=16 if '--target=x86_64-apple-macos10.14' in args else 8
  output.write_text(('call ptr @__cxa_begin_catch(\\nload i128, ptr %v, align '+str(alignment)+'\\n')*2)
 else:
@@ -31,6 +34,7 @@ else:
  assert (t/'bundle/catch-align/r').is_file(),'build phase did not retain target binary'
  assert (t/'bundle/catch-align/run.sh').is_file(),'no portable target runner'
  assert (t/'bundle/catch-align/wide').is_file(),'build phase did not retain aligned-class witness'
+ assert (t/'bundle/catch-align/mep').is_file(),'build phase did not retain make_exception_ptr witness'
  # Exercise the saved runner with controlled outputs, without executing Mach-O on this host.
  case=t/'bundle/catch-align'
  (case/'r').write_text('#!/bin/sh\necho caught 5\n')
@@ -38,6 +42,10 @@ else:
  r=subprocess.run(['sh',str(case/'run.sh')],capture_output=True,text=True)
  assert r.returncode!=0,'aligned-class runtime failure was ignored'
  (case/'wide').write_text('#!/bin/sh\n[ "$1" = wide ] || exit 2\necho caught 6\n')
+ (case/'mep').write_text('#!/bin/sh\nkill -SEGV $$\n')
+ r=subprocess.run(['sh',str(case/'run.sh')],capture_output=True,text=True)
+ assert r.returncode!=0,'make_exception_ptr runtime failure was ignored'
+ (case/'mep').write_text('#!/bin/sh\necho caught 7\n')
  r=subprocess.run(['sh',str(case/'run.sh')],capture_output=True,text=True)
  assert r.returncode==0,(r.stdout,r.stderr)
 

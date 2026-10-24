@@ -1,0 +1,40 @@
+Mavergreen's own, not yet upstream: libc++'s std::make_exception_ptr throws the exception for a
+deployment target before macOS 10.14, instead of constructing it in place.
+
+Why: before macOS 10.14, libc++abi places an exception object 8 bytes past a 16-byte boundary, and clang
+knows it (getExnObjectAlignment; patches/0003 is the catch side). With vendor availability annotations
+off, as Mavergreen builds libc++, _LIBCPP_AVAILABILITY_HAS_INIT_PRIMARY_EXCEPTION is 1 everywhere, and
+make_exception_ptr placement-news the object into __cxa_allocate_exception's memory at the type's own
+alignment: for a 16-byte-aligned class, a movaps that faults on 10.9 to 10.13 (seen on 10.9.5 with a
+32-byte class passed in memory). Turning the in-place path off before 10.14 makes make_exception_ptr
+throw instead, which goes through clang's throw side. Apple's own libc++ does the same before macOS 15,
+where its availability annotations mark __cxa_init_primary_exception unavailable. Modern targets are
+unchanged. The test is `< 101400` because before 10.10 the macro has four digits (1090 for 10.9),
+which also compare below it. Recaulk still back-fills __cxa_init_primary_exception, for anything else that calls it.
+
+Upstream builds with vendor availability on for Apple, so it never takes this path for old targets; to
+offer only if upstream wants the guard independent of that setting.
+
+tests/catch-align-test.sh is the regression test (the IR on any host, with a 10.14 control; run where
+x86_64 runs, which on 10.9 is CI's on-mavericks job).
+
+--- a/libcxx/include/__configuration/availability.h
++++ b/libcxx/include/__configuration/availability.h
+@@ -304,6 +304,17 @@
+ #  define _LIBCPP_AVAILABILITY_INIT_PRIMARY_EXCEPTION
+ #endif
+ 
++// Before macOS 10.14, the system's libc++abi places an exception object 8 bytes past a 16-byte boundary
++// (clang's getExnObjectAlignment). make_exception_ptr's in-place path constructs the object there at its
++// own alignment, which faults for an over-aligned type; throwing it goes through clang, which knows.
++// Apple's own libc++ never takes that path before macOS 15. Mavergreen's own (patches/0004).
++#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 101400
++#  undef _LIBCPP_AVAILABILITY_HAS_INIT_PRIMARY_EXCEPTION
++#  undef _LIBCPP_AVAILABILITY_INIT_PRIMARY_EXCEPTION
++#  define _LIBCPP_AVAILABILITY_HAS_INIT_PRIMARY_EXCEPTION 0
++#  define _LIBCPP_AVAILABILITY_INIT_PRIMARY_EXCEPTION
++#endif
++
+ // Only define a bunch of symbols in the dylib if we need to be compatible with LLVM 7 headers or older
+ #  if defined(_LIBCPP_BUILDING_LIBRARY) && _LIBCPP_AVAILABILITY_MINIMUM_HEADER_VERSION < 8
+ #    define _LIBCPP_HIDE_FROM_ABI_SINCE_LLVM8
