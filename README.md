@@ -30,7 +30,7 @@ clang++-22 -o hello hello.cpp
 scp hello your-mavericks-system:
 ```
 
-## Linux x86_64 host (in development)
+## Linux x86_64 host
 
 The Linux compiler targets Mavericks; it does not build Linux executables. Its supported
 host baseline is glibc 2.35 (Ubuntu 22.04), with Python 3.9+ for SDK setup. Use host-native
