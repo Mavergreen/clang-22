@@ -156,7 +156,7 @@ Machine-read by `artifact-facts.sh` as `- <check>:<glob> : <reason>` (one line e
   not that path: it is Wowfunhappy's original climb from Apple's clang-3.5 seed,
   kept for history. Ends when that native mode exists and is checked against a CI build.
 
-### Linux host variant (in development)
+### Linux host variant
 
 The Linux x86_64 tarball serves developers producing Mavericks artifacts on Linux.
 It shares this release's LLVM source, patches, Recaulk and target-file export; the SDK
