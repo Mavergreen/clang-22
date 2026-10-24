@@ -98,10 +98,6 @@ RUNTIME_TARGET="x86_64-apple-darwin"
 # "use of undeclared identifier 'CLOCK_REALTIME'" / 'CLOCK_MONOTONIC_RAW', because on Apple its
 # steady_clock calls clock_gettime unconditionally. Same wiring native-bootstrap/build.sh proved.
 #
-# -include shim/aligned_alloc.h back-fills the ONE 10.9-missing symbol the shadow headers do not cover
-# and libc++ cannot be told to stop using (see that header). Runtimes sub-build only -- never the
-# shipped clang.cfg.
-#
 # THE HOST TOOLS RECORD THE ARM64 PIN. With no CMAKE_OSX_* the host compiler targets the runner's own
 # macOS and SDK, and every clang/lld binary and host library in the cross pkg recorded minos 26.0 sdk
 # 26.5. The three CMAKE_OSX_* settings below reach the host build and nothing else: LLVM configures
@@ -141,7 +137,7 @@ RUNTIME_TARGET="x86_64-apple-darwin"
 # __cxa_throw_bad_array_new_length, type_info for char8_t &c), reaching libc++ through the
 # CMAKE_SHARED_LINKER_FLAGS below and every program through clang++.cfg. The unwinder is the system's,
 # in libSystem. tests/cxxabi-interop-test.sh is the gate.
-RC="-isystem $HERE/shim/include -isystem $RECAULK_INC/recaulk -include $HERE/shim/aligned_alloc.h -fno-jump-tables"
+RC="-isystem $RECAULK_INC/recaulk -fno-jump-tables"
 rm -rf "$BLD"
 shipyard-cmake -G Ninja -S "$SRC/llvm" -B "$BLD" \
   $(mav_ccache_args) \
@@ -197,12 +193,6 @@ echo "==> 5. assemble: Recaulk + clang.cfg (default target = x86_64 Mavericks)"
 install -d "$STAGE/lib" "$STAGE/include" "$STAGE/libexec" "$STAGE/SDKs"
 cp "$RECAULK_A" "$STAGE/lib/"
 rm -rf "$STAGE/include/recaulk"; cp -R "$RECAULK_INC/recaulk" "$STAGE/include/"
-# Our own tracked back-fill overlay (today only pthread/qos.h), kept OUT of the vendored recaulk/
-# tree so that stays a verbatim copy of upstream. Shipped, not runtimes-build-only, because USER code
-# includes <pthread/qos.h> too: QoS is a 10.10 feature the 10.9 SDK lacks (not an SDK defect). It
-# hands off to Recaulk's copy, which declares the whole API, and keeps a fallback for a search path
-# without Recaulk's headers (see build/shim/include/pthread/qos.h).
-rm -rf "$STAGE/include/mavericks-compat"; cp -R "$HERE/shim/include" "$STAGE/include/mavericks-compat"
 
 # Where LLVM actually put the x86_64/10.9 C++ runtime. DISCOVERED, not assumed: LLVM lays per-target
 # runtimes under lib/<triple>/ with LLVM_ENABLE_PER_TARGET_RUNTIME_DIR (the runtimes-build default)
@@ -282,7 +272,6 @@ printf '%s\n' \
   "--target=$CFG_TARGET" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
   "-mmacosx-version-min=$MACOS_MIN" \
-  '-isystem <CFGDIR>/../include/mavericks-compat' \
   '-isystem <CFGDIR>/../include/recaulk' \
   '-Wl,-dead_strip_dylibs' \
   '-Wl,-headerpad_max_install_names' \
@@ -302,7 +291,6 @@ printf '%s\n' \
   "--target=$CFG_TARGET" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
   "-mmacosx-version-min=$MACOS_MIN" \
-  '-isystem <CFGDIR>/../include/mavericks-compat' \
   '-isystem <CFGDIR>/../include/recaulk' \
   '-nostdlib++' \
   '-Wl,-dead_strip_dylibs' \

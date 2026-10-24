@@ -24,6 +24,12 @@ n="$(grep -c -x -F "  '<CFGDIR>/../lib/librecaulk.a' \\" "$B" || true)"
 grep '^RC=' "$B" | grep -q -F -e '-isystem $RECAULK_INC/recaulk' || fail "RC lacks -isystem \$RECAULK_INC/recaulk"
 n="$(grep 'RUNTIMES_.*_LINKER_FLAGS' "$B" | grep -c -F '=$RECAULK_A"' || true)"
 [ "$n" = 2 ] || fail "want 2 RUNTIMES_*_LINKER_FLAGS lines ending =\$RECAULK_A\", got $n"
+if grep '^RC=' "$B" | grep -q -F -e '-include'; then
+  fail "RC force-includes a header; Recaulk's <stdlib.h> declares aligned_alloc and <pthread/qos.h> the QoS API"
+fi
+private="$(git ls-files build/shim; git grep -n -F 'mavericks-compat' -- . ':!native-bootstrap' ':!release-notes' ':!tests/recaulk-wiring-test.sh' || true)"
+[ -z "$private" ] || fail "private aligned_alloc/QoS back-fills or their include/mavericks-compat overlay remain; Recaulk provides both:
+$private"
 
 # 4. the repackage trigger watches the Recaulk pin, not versions.sh
 W=.github/workflows/repackage-on-ingredient-bump.yml
