@@ -63,7 +63,7 @@ def export(stage, out):
         raise ValueError('expected exactly one target libc++.a')
     major = os.environ['LLVM_VERSION'].split('.')[0]
     selected = ['bin/clang.cfg', 'bin/clang++.cfg', 'bin/portable-ld',
-                'include/c++/v1', 'include/recaulk', 'include/mavericks-compat',
+                'include/c++/v1', 'include/recaulk',
                 'lib/librecaulk.a', runtimes[0].relative_to(stage).as_posix(),
                 f'lib/clang/{major}/include', f'lib/clang/{major}/lib/darwin']
     for required in (f'lib/clang/{major}/lib/darwin/libclang_rt.osx.a',

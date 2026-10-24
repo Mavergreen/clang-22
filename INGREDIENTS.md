@@ -20,15 +20,6 @@ Not ingredients: `build/*.sh` and `native-bootstrap/` are this repo's own recipe
 repackage you cut deliberately (`workflow_dispatch` with `local_release=true`), not something Renovate
 drives.
 
-Shipped shim (`build/shim/` → `include/mavericks-compat/` in the toolchain): hand-authored header
-`pthread/qos.h`, which hands off to Recaulk's own `<pthread/qos.h>` (it declares everything since
-Recaulk 20261017.1) and declares the type and setter itself only when Recaulk's include dir is absent.
-Its sibling `build/shim/aligned_alloc.h` is force-included into the runtimes build only and is not
-shipped. The shim is our own source, not an external input, so there is nothing for Renovate to pin
-or track — but unlike `build/*.sh` it is **baked into the artifact** (`clang.cfg` references it via
-`-isystem`), so it is recorded here for anyone auditing what the shipped toolchain contains. A change
-to it is a deliberate repackage, like a patch.
-
 Patches (`patches/*.patch`, applied to the GPG-verified source by `mav_apply_patches` in
 `build/lib.sh`, which both `build/build-cross.sh` and `build/build-native.sh` call: CI's native job
 unpacks its own copy of the tarball): upstream LLVM fixes the pinned version lacks, each rebased onto

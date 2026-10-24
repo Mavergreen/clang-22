@@ -6,7 +6,7 @@
 # process (spec Review Focus 1 and 4).
 #
 # Configured by environment:
-#   TC         toolchain prefix (bin/clang++, include/c++/v1, include/mavericks-compat, include/recaulk)
+#   TC         toolchain prefix (bin/clang++, include/c++/v1, include/recaulk)
 #              default $WORK/stage$CROSS_PREFIX
 #   LIBCXX_LIB directory holding libc++.1.dylib and libc++abi.1.dylib, default $LIBCXX_STAGE/lib.
 #              When it is $LIBCXX_PREFIX/lib (an installed product) no DYLD_* is set at all.
@@ -41,7 +41,7 @@ t="$(mktemp -d "${TMPDIR:-/tmp}/libcxx-runtime.XXXXXX")"; trap 'rm -rf "$t"' EXI
 cxx() {
   "$TC/bin/clang++" --no-default-config --target="$TARGET_TRIPLE" -isysroot "$SDK" \
     -mmacosx-version-min="$MACOS_MIN" -fuse-ld=lld -nostdinc++ \
-    -isystem "$TC/include/c++/v1" -isystem "$TC/include/mavericks-compat" -isystem "$TC/include/recaulk" \
+    -isystem "$TC/include/c++/v1" -isystem "$TC/include/recaulk" \
     -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" "$@"
 }
 

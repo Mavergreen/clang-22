@@ -65,7 +65,7 @@ elif [ -f "$LIBCXX_LIB/libc++.1.dylib" ] && [ -f "$LIBCXX_LIB/libc++abi.1.dylib"
   # neither.
   [ "$LIBCXX_LIB" = "$LIBCXX_PREFIX/lib" ] || RUN_DYLIB="DYLD_FALLBACK_LIBRARY_PATH=$LIBCXX_LIB"
   ours cc_plain -nostdinc++ -isystem "$TC/include/c++/v1" \
-    -isystem "$TC/include/mavericks-compat" -isystem "$TC/include/recaulk" -o "$t/interop-dylib" \
+    -isystem "$TC/include/recaulk" -o "$t/interop-dylib" \
     -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" "$TC/lib/librecaulk.a" -lobjc \
     || { echo "FAIL: could not build interop.mm against libcxx22"; exit 1; }
   shapes="static dylib"

@@ -10,7 +10,7 @@ with tempfile.TemporaryDirectory(prefix='target export ') as tmp:
     out = pathlib.Path(tmp) / 'out'
     files = ['bin/clang.cfg', 'bin/clang++.cfg', 'bin/portable-ld',
              'include/c++/v1/vector', 'include/recaulk/time.h',
-             'include/mavericks-compat/pthread/qos.h', 'lib/librecaulk.a',
+             'lib/librecaulk.a',
              'lib/x86_64-apple-darwin/libc++.a',
              'lib/clang/22/include/stddef.h',
              'lib/clang/22/lib/darwin/libclang_rt.osx.a',
