@@ -1,0 +1,29 @@
+Mavergreen's own: clang links no libarclite for macOS 10.8 and later.
+
+Why: clang 22 links libarclite for any Objective-C link below macOS 10.11 (ObjCRuntime::hasSubscripting
+is false there), and this toolchain ships none, so every -fobjc-arc link for 10.9 failed: "SDK does not
+contain 'libarclite' ... try increasing the minimum deployment target". 10.8's runtime has native ARC and
+its Foundation implements the subscripting methods arclite back-filled; Apple's toolchains of that era
+linked arclite only below 10.8, and an ARC program linked without it runs correctly on 10.9.5 (__weak,
+literals, subscripting, @autoreleasepool). Below 10.8 the driver still asks for arclite, as before.
+
+Found by libc++'s own test suite (make_exception_ptr.objc.pass.mm) on 10.9.5; it had also blocked
+building family Objective-C as ARC. Not for upstream, which follows Apple's current toolchains.
+
+tests/arc-link-test.sh is the regression test (the driver's link line, with a 10.7 control, on any Mac;
+the ARC program's run where x86_64 runs, which on 10.9 is CI's on-mavericks job).
+
+--- a/clang/lib/Driver/ToolChains/Darwin.cpp
++++ b/clang/lib/Driver/ToolChains/Darwin.cpp
+@@ -1235,6 +1235,11 @@
+   if ((runtime.hasNativeARC() || !isObjCAutoRefCount(Args)) &&
+       runtime.hasSubscripting())
+     return;
++  // macOS 10.8 has native ARC, and its Foundation the subscripting methods
++  // arclite back-filled: Apple's toolchains of that era linked arclite only
++  // below 10.8, and this toolchain ships none.
++  if (isTargetMacOSBased() && !isMacosxVersionLT(10, 8))
++    return;
+ 
+   SmallString<128> P(getDriver().ClangExecutable);
+   llvm::sys::path::remove_filename(P); // 'clang'
