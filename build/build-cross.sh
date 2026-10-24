@@ -271,12 +271,17 @@ echo "    target C++ runtime: $RTREL"
 # SDK header and only take effect when code includes the normal header, so a bare -E or an .s file is
 # untouched) plus a static archive resolved at link time. Deliberately NO -include force-header: that
 # breaks build systems that probe the compiler and pollutes assembly.
+# -faligned-allocation and -fsized-deallocation: clang turns both off below 10.13 and 10.12, because the
+# SYSTEM libc++ lacked those operators. These links always use the toolchain's own libc++.a (and libcxx22
+# defines them too), which has them, and off, an alignas(64) type's vector storage silently gets malloc's
+# 16-byte alignment. Both are in clang.cfg as well, since `clang foo.cpp` reads that one; C ignores them.
 printf '%s\n' \
   "--target=$TARGET_TRIPLE" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
   "-mmacosx-version-min=$MACOS_MIN" \
   '-isystem <CFGDIR>/../include/mavericks-compat' \
   '-isystem <CFGDIR>/../include/recaulk' \
+  '-faligned-allocation' '-fsized-deallocation' \
   '-Wl,-dead_strip_dylibs' \
   '-Wl,-U,__availability_version_check' \
   '<CFGDIR>/../lib/librecaulk.a' \
@@ -296,6 +301,7 @@ printf '%s\n' \
   "-mmacosx-version-min=$MACOS_MIN" \
   '-isystem <CFGDIR>/../include/mavericks-compat' \
   '-isystem <CFGDIR>/../include/recaulk' \
+  '-faligned-allocation' '-fsized-deallocation' \
   '-nostdlib++' \
   '-Wl,-dead_strip_dylibs' \
   '-Wl,-U,__availability_version_check' \

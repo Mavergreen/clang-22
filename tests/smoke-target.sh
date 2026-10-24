@@ -38,6 +38,42 @@ deps="$("$OTOOL" -L "$t/hello" | sed 1d | awk '{print $1}')"
 [ "$(printf '%s\n' "$deps" | LC_ALL=C sort)" = "$(printf '%s\n' /usr/lib/libSystem.B.dylib /usr/lib/libc++abi.dylib | LC_ALL=C sort)" ] \
   || { echo "FAIL: hello links other than libSystem and /usr/lib/libc++abi.dylib:"; echo "$deps"; exit 1; }
 
+# Over-aligned allocation, with no flags. clang gates aligned new below 10.13 because the SYSTEM libc++
+# lacked it; this toolchain always links its own libc++.a, which has it, so clang++.cfg turns it on.
+# Without that, make_unique of an alignas(64) type does not compile, and vector's storage silently gets
+# only malloc's 16-byte alignment.
+cat > "$t/aligned.cpp" <<'EOF'
+#include <cstdint>
+#include <cstdio>
+#include <memory>
+#include <vector>
+struct alignas(64) Line { char c[64]; };
+int main() {
+  std::vector<std::vector<Line>> keep; std::vector<std::unique_ptr<Line>> owned; int bad = 0;
+  for (int i = 0; i < 100; i++) {
+    keep.emplace_back(1 + i % 5); bad += (uintptr_t)keep.back().data() % 64 != 0;
+    owned.push_back(std::make_unique<Line>()); bad += (uintptr_t)owned.back().get() % 64 != 0;
+  }
+  std::printf("%d of 200 misaligned\n", bad);
+  return bad != 0;
+}
+EOF
+"$CLANGXX" -std=c++17 -O1 "$t/aligned.cpp" -o "$t/aligned" \
+  || { echo "FAIL: over-aligned allocation does not compile with the default flags"; exit 1; }
+if [ "$(uname -m)" = x86_64 ] || arch -x86_64 /usr/bin/true 2>/dev/null; then
+  out="$("$t/aligned")" || { echo "FAIL: over-aligned allocation: $out"; exit 1; }
+  echo "ok: over-aligned allocation ($out)"
+else
+  echo "note: x86_64 does not run here; over-aligned allocation compiled, not run"
+fi
+
+# Sized deallocation, the same kind of gate (off below 10.12): a delete must call the sized operator.
+printf 'struct S { long v[4]; };\nvoid drop(S *p) { delete p; }\n' > "$t/sized.cpp"
+"$CLANGXX" -std=c++17 -c "$t/sized.cpp" -o "$t/sized.o"
+"$STAGE/bin/llvm-nm" -u "$t/sized.o" | grep -q '__ZdlPvm$' \
+  || { echo "FAIL: delete does not call the sized operator delete(void*, size_t)"; exit 1; }
+echo "ok: sized deallocation"
+
 # The compat guard: assert the emitted binary is 10.9-safe. Do NOT point it at the arm64 host clang --
 # it asserts arch x86_64 by design and would fail for the wrong reason.
 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$t/hello"

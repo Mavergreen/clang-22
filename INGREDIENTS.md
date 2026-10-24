@@ -97,6 +97,12 @@ repo's Recaulk pin is also its C++ runtime's. The aligned and sized new and dele
 `libc++abi.1.dylib` to `libc++.1.dylib`, which defines them; every name the parity references export
 stays reachable through `libc++.1.dylib`. `tests/cxxabi-interop-test.sh` is the gate.
 
+Because every link gets those operators from the toolchain's libc++, `clang.cfg` and `clang++.cfg`
+turn on `-faligned-allocation` and `-fsized-deallocation`. clang turns them off below 10.13 and 10.12
+on the assumption that the system's libc++ is the one in use, and with them off, an `alignas(64)`
+type's `std::vector` storage silently got malloc's 16-byte alignment and `std::make_unique` of it did
+not compile. `tests/smoke-target.sh` checks both with no flags given.
+
 One known limit, 10.9's own: its libc++abi places a thrown object 8 bytes past a 16-byte boundary.
 clang reads a value caught by value at that alignment since patches/0003, and libc++'s
 `std::make_exception_ptr` throws rather than building the object in place there since patches/0004,
