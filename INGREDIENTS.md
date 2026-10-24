@@ -43,7 +43,9 @@ already avoid it, so it's needed only because we build libc++ without them), and
 `0005-clang-no-arclite-for-macos-10.8.patch`, so an ARC Objective-C program for 10.9 links without
 libarclite, which 10.8 and later do not need and this toolchain does not ship (ours), and
 `0006-libcxx-iostream-init-per-tu.patch`, so a global constructor can use `std::cout` although
-libc++ is linked statically, after the program's objects (ours). They apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
+libc++ is linked statically, after the program's objects (ours), and
+`0007-clang-darwin-aligned-sized-alloc-available.patch`, so over-aligned allocation and sized
+delete work for 10.9 with the toolchain's own libc++ (ours). They apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
 build by name; drop a patch once the new version carries its commit. A change here is a deliberate
 repackage.
 
@@ -101,11 +103,12 @@ repo's Recaulk pin is also its C++ runtime's. The aligned and sized new and dele
 `libc++abi.1.dylib` to `libc++.1.dylib`, which defines them; every name the parity references export
 stays reachable through `libc++.1.dylib`. `tests/cxxabi-interop-test.sh` is the gate.
 
-Because every link gets those operators from the toolchain's libc++, `clang.cfg` and `clang++.cfg`
-turn on `-faligned-allocation` and `-fsized-deallocation`. clang turns them off below 10.13 and 10.12
-on the assumption that the system's libc++ is the one in use, and with them off, an `alignas(64)`
-type's `std::vector` storage silently got malloc's 16-byte alignment and `std::make_unique` of it did
-not compile. `tests/smoke-target.sh` checks both with no flags given.
+Because every link gets those operators from the toolchain's libc++, patches/0007 has clang treat
+aligned allocation and sized deallocation as available for every macOS target. clang marks them
+unavailable below 10.13 and 10.12 on the assumption that the system's libc++ is the one in use; so
+marked, an `alignas(64)` type's `std::vector` storage silently got malloc's 16-byte alignment and
+`std::make_unique` of it did not compile. Each standard keeps clang's own default for both.
+`tests/smoke-target.sh` checks them with no flags given, and that C++03 headers still compile.
 
 One known limit, 10.9's own: its libc++abi places a thrown object 8 bytes past a 16-byte boundary.
 clang reads a value caught by value at that alignment since patches/0003, and libc++'s
@@ -128,7 +131,7 @@ and `identifier` are the keys that are supposed to differ.
 - rosetta:tests/target/host-run.sh: preserves the existing Mac runtime-test policy when executing saved x86_64 witnesses on Apple Silicon, including profile-test Rosetta setup. Linux never calls this helper. Reconsider when Mac build jobs can execute the witnesses on an Intel host; before macOS 28 removes Rosetta.
 
 - rosetta:tests/smoke-native.sh: the native-toolchain smoke test primes Rosetta (`softwareupdate --install-rosetta`) and runs the staged x86_64/10.9 `clang++` under `arch -x86_64` to compile and execute a hello-world, proving the shipped native toolchain actually works rather than just looking right on disk. This is the check the cross variant cannot run (its host tools are arm64 by design); only the native leg's shipped x86_64 host clang++ needs it. Availability never gates: it SKIPs when `arch -x86_64 clang++ --version` cannot execute at all (no Rosetta), but once Rosetta demonstrably runs the binary, a compile/link/run failure is treated as a real product defect, not skipped. Reconsider when this validation can run on an x86_64 host (the 10.9 box or an Intel runner) instead of via Rosetta on the arm64 release runner; at the latest before macOS 28 removes Rosetta.
-- rosetta:tests/smoke-target.sh: runs a program with over-aligned `std::vector` and `std::make_unique` storage, built with the toolchain's default flags, under `arch -x86_64` where it can, to prove `clang++.cfg`'s `-faligned-allocation` gives 64-byte-aligned storage at run time, and that a global constructor can write to `std::cout` with libc++ linked statically (patches/0006). macOS 26's malloc is 16-byte aligned too, so the run catches the defect under Rosetta as it does on 10.9; where x86_64 cannot run it compiles only and says so. Reconsider when it can run on the 10.9 box or an Intel runner; at the latest before macOS 28 removes Rosetta.
+- rosetta:tests/smoke-target.sh: runs a program with over-aligned `std::vector` and `std::make_unique` storage, built with the toolchain's default flags, under `arch -x86_64` where it can, to prove over-aligned allocation (patches/0007) gives 64-byte-aligned storage at run time, and that a global constructor can write to `std::cout` with libc++ linked statically (patches/0006). macOS 26's malloc is 16-byte aligned too, so the run catches the defect under Rosetta as it does on 10.9; where x86_64 cannot run it compiles only and says so. Reconsider when it can run on the 10.9 box or an Intel runner; at the latest before macOS 28 removes Rosetta.
 - rosetta:tests/arc-link-test.sh: links an ARC Objective-C program for 10.9 (patches/0005) and runs it under `arch -x86_64` where it can, to prove `__weak`, literals and subscripting work without libarclite. The link half proves the patch on any Mac; the on-mavericks job's run on a 10.9.5 guest is what proves the 10.9 runtime needs no arclite. Reconsider with libcxx-runtime-test's.
 - rosetta:tests/libcxx-runtime-test.sh: runs an x86_64/10.9 C++ program against the staged libcxx22 on the arm64 release runner, proving exceptions, iostreams and threads work through the dylibs; it primes Rosetta (`softwareupdate --install-rosetta`) first on a non-x86_64 host. In CI an inability to run x86_64 fails the step (the workflow does not treat its exit 77 as a skip), because this is the only CI proof that an exception thrown in one image is caught in another and that libcxx22 coexists with the system libc++; run locally, the test SKIPs instead. Reconsider when it can run on the 10.9 box or an Intel runner in CI; at the latest before macOS 28 removes Rosetta.
 - rosetta:tests/profile-runtime-test.sh: runs `-fprofile-instr-generate` and `--coverage` x86_64/10.9 binaries built by the staged toolchains (cross, then native) on the arm64 release runner, then reads their profiles back with the toolchain's own `llvm-profdata`/`llvm-cov`; it primes Rosetta (`softwareupdate --install-rosetta`) first on a non-x86_64 host. In CI an inability to run x86_64 fails the step, because a profile runtime that links but cannot write a profile is the defect this test exists to catch; run locally, it SKIPs instead. It also passes natively on the 10.9 box (`TC=/usr/local/mavergreen/clang22`). Reconsider when it can run on the 10.9 box or an Intel runner in CI; at the latest before macOS 28 removes Rosetta.

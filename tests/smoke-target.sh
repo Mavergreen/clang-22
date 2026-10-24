@@ -39,7 +39,7 @@ deps="$("$OTOOL" -L "$t/hello" | sed 1d | awk '{print $1}')"
   || { echo "FAIL: hello links other than libSystem and /usr/lib/libc++abi.dylib:"; echo "$deps"; exit 1; }
 
 # Over-aligned allocation, with no flags. clang gates aligned new below 10.13 because the SYSTEM libc++
-# lacked it; this toolchain always links its own libc++.a, which has it, so clang++.cfg turns it on.
+# lacked it; this toolchain always links its own libc++.a, which has it (patches/0007).
 # Without that, make_unique of an alignas(64) type does not compile, and vector's storage silently gets
 # only malloc's 16-byte alignment.
 cat > "$t/aligned.cpp" <<'EOF'
@@ -82,6 +82,13 @@ if [ "$(uname -m)" = x86_64 ] || arch -x86_64 /usr/bin/true 2>/dev/null; then
   [ "$out" = 'early main' ] || { echo "FAIL: std::cout from a global constructor: $out"; exit 1; }
   echo "ok: std::cout from a global constructor"
 fi
+
+# ...without forcing either into a standard that lacks it: forced on in C++03, clang's implicit
+# std::align_val_t clashed with libc++'s, so every header that reaches <new> failed to compile.
+printf '#include <algorithm>\n#include <memory>\nint main() { return 0; }\n' > "$t/cxx03.cpp"
+"$CLANGXX" -std=c++03 -Werror "$t/cxx03.cpp" -o "$t/cxx03" \
+  || { echo "FAIL: <algorithm> and <memory> do not compile as C++03"; exit 1; }
+echo "ok: C++03 headers"
 
 # Sized deallocation, the same kind of gate (off below 10.12): a delete must call the sized operator.
 printf 'struct S { long v[4]; };\nvoid drop(S *p) { delete p; }\n' > "$t/sized.cpp"

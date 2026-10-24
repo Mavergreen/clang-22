@@ -1,0 +1,48 @@
+Mavergreen's own: clang treats aligned allocation and sized deallocation as available for every macOS
+deployment target.
+
+Why: clang marks the aligned operators new and delete unavailable below macOS 10.13, and sized delete
+below 10.12, because the system's libc++ lacked them. This toolchain always links its own libc++
+(libc++.a through clang++.cfg's portable-ld, or libcxx22), which defines them. Marked unavailable, an
+over-aligned new or make_unique did not compile ("only available on macOS 10.13 or newer"), and
+std::vector of an alignas(64) type silently got malloc's 16-byte alignment (200 of 200 misaligned on
+10.9.5). Forcing them on with -faligned-allocation in the driver config instead broke C++03, where
+clang's implicit std::align_val_t clashes with libc++'s; with the predicates false, each standard keeps
+clang's own default (aligned allocation from C++17, sized deallocation from C++14). Mac Catalyst and the
+other platforms are unchanged.
+
+Not for upstream, whose Apple toolchains use the system's libc++.
+
+tests/smoke-target.sh is the regression test (over-aligned allocation and sized delete with no flags
+given, and C++03 headers still compiling).
+
+--- a/clang/lib/Driver/ToolChains/Darwin.cpp
++++ b/clang/lib/Driver/ToolChains/Darwin.cpp
+@@ -3111,9 +3111,10 @@
+   if (isTargetMacCatalyst())
+     return TargetVersion < alignedAllocMinVersion(llvm::Triple::MacOSX);
+   switch (TargetPlatform) {
+-  case MacOS: // Earlier than 10.13.
+-    OS = llvm::Triple::MacOSX;
+-    break;
++  case MacOS:
++    // This toolchain links its own libc++, which defines the aligned
++    // operators new and delete, whatever the deployment target.
++    return false;
+   case IPhoneOS:
+     OS = llvm::Triple::IOS;
+     break;
+@@ -3202,9 +3203,10 @@
+   if (isTargetMacCatalyst())
+     return TargetVersion < sizedDeallocMinVersion(llvm::Triple::MacOSX);
+   switch (TargetPlatform) {
+-  case MacOS: // Earlier than 10.12.
+-    OS = llvm::Triple::MacOSX;
+-    break;
++  case MacOS:
++    // This toolchain links its own libc++, which defines the sized
++    // operators delete, whatever the deployment target.
++    return false;
+   case IPhoneOS:
+     OS = llvm::Triple::IOS;
+     break;
