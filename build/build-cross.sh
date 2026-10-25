@@ -266,6 +266,9 @@ echo "    target C++ runtime: $RTREL"
 # -mmacosx-version-min, which silently discarded a project's own deployment target (and so
 # CMAKE_OSX_DEPLOYMENT_TARGET). With the version in -mmacosx-version-min, a project's later one wins.
 CFG_TARGET="${TARGET_TRIPLE%"$MACOS_MIN"}"
+# --mavergreen-own-libcxx (patches/0007) tells clang the C++ library linked is the toolchain's
+# libc++, as clang++.cfg's portable-ld makes it, so the aligned and sized operators 10.9's own lacks are
+# available; without the cfgs, clang keeps its gates for the system's libc++.
 # -headerpad_max_install_names leaves room for install names and rpaths changed after the link, as
 # Apple's ld users expect: ld64.lld's default pad left a dylib 40 bytes, too few for one rpath.
 printf '%s\n' \
@@ -274,6 +277,7 @@ printf '%s\n' \
   "-mmacosx-version-min=$MACOS_MIN" \
   '-isystem <CFGDIR>/../include/recaulk' \
   '-Wl,-dead_strip_dylibs' \
+  '--mavergreen-own-libcxx' \
   '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
   '<CFGDIR>/../lib/librecaulk.a' \
@@ -294,6 +298,7 @@ printf '%s\n' \
   '-isystem <CFGDIR>/../include/recaulk' \
   '-nostdlib++' \
   '-Wl,-dead_strip_dylibs' \
+  '--mavergreen-own-libcxx' \
   '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
   '<CFGDIR>/../lib/librecaulk.a' \

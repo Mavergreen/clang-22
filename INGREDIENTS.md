@@ -35,8 +35,8 @@ already avoid it, so it's needed only because we build libc++ without them), and
 libarclite, which 10.8 and later do not need and this toolchain does not ship (ours), and
 `0006-libcxx-iostream-init-per-tu.patch`, so a global constructor can use `std::cout` although
 libc++ is linked statically, after the program's objects (ours), and
-`0007-clang-darwin-aligned-sized-alloc-available.patch`, so over-aligned allocation and sized
-delete work for 10.9 with the toolchain's own libc++ (ours), and
+`0007-clang-mavergreen-own-libcxx.patch`, so over-aligned allocation and sized delete work for
+10.9 with the toolchain's own libc++ (ours), and
 `0008-llvm-objcopy-macho-refuse-header-overflow.patch`, so llvm-install-name-tool refuses load
 commands that outgrow the header pad, as Apple's install_name_tool does, instead of writing them over
 `__text` and exiting 0 (ours). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
@@ -98,12 +98,14 @@ repo's Recaulk pin is also its C++ runtime's. The aligned and sized new and dele
 `libc++abi.1.dylib` to `libc++.1.dylib`, which defines them; every name the parity references export
 stays reachable through `libc++.1.dylib`. `tests/cxxabi-interop-test.sh` is the gate.
 
-Because every link gets those operators from the toolchain's libc++, patches/0007 has clang treat
-aligned allocation and sized deallocation as available for every macOS target. clang marks them
-unavailable below 10.13 and 10.12 on the assumption that the system's libc++ is the one in use; so
-marked, an `alignas(64)` type's `std::vector` storage silently got malloc's 16-byte alignment and
-`std::make_unique` of it did not compile. Each standard keeps clang's own default for both.
-`tests/smoke-target.sh` checks them with no flags given, and that C++03 headers still compile.
+Because every link through the cfgs gets those operators from the toolchain's libc++, the cfgs pass
+`--mavergreen-own-libcxx` (patches/0007), which has clang treat aligned allocation and sized
+deallocation as available for every macOS target. clang marks them unavailable below 10.13 and 10.12
+on the assumption that the system's libc++ is the one in use; so marked, an `alignas(64)` type's
+`std::vector` storage silently got malloc's 16-byte alignment and `std::make_unique` of it did not
+compile. Each standard keeps clang's own default for both. Without the cfgs (`--no-default-config`,
+as when building against the system's libc++), clang's gates stand. `tests/smoke-target.sh` checks
+both drivers with no flags given, the gates without the cfgs, and that C++03 headers still compile.
 
 One known limit, 10.9's own: its libc++abi places a thrown object 8 bytes past a 16-byte boundary.
 clang reads a value caught by value at that alignment since patches/0003, and libc++'s

@@ -1,0 +1,60 @@
+Mavergreen's own: --mavergreen-own-libcxx tells clang the C++ library linked is this toolchain's
+libc++, so aligned allocation and sized deallocation are available for every macOS deployment target.
+
+Why: clang marks the aligned operators new and delete unavailable below macOS 10.13, and sized delete
+below 10.12, because the system's libc++ lacked them. The driver config files link this toolchain's own
+libc++ (libc++.a through clang++.cfg's portable-ld, or libcxx22), which defines them, and pass this flag.
+Marked unavailable, an over-aligned new or make_unique did not compile ("only available on macOS 10.13
+or newer"), and std::vector of an alignas(64) type silently got malloc's 16-byte alignment (200 of 200
+misaligned on 10.9.5). Forcing them on with -faligned-allocation in the cfgs instead broke C++03, where
+clang's implicit std::align_val_t clashes with libc++'s; skipping only the gates, each standard keeps
+clang's own default (aligned allocation from C++17, sized deallocation from C++14). Without the flag,
+as with --no-default-config against the system's libc++, the gates stand: code built so must not call
+sized delete, which 10.9's /usr/lib/libc++ lacks.
+
+Not for upstream, whose Apple toolchains use the system's libc++.
+
+tests/smoke-target.sh is the regression test (over-aligned allocation and sized delete with no flags
+given, through either driver; C++03 headers still compiling; and both gates without the cfgs).
+
+--- a/clang/include/clang/Options/Options.td
++++ b/clang/include/clang/Options/Options.td
+@@ -6133,6 +6133,10 @@
+   Visibility<[ClangOption, FlangOption]>,
+   Group<Link_Group>;
+ def nostdlibxx : Flag<["-"], "nostdlib++">;
++def mavergreen_own_libcxx : Flag<["--"], "mavergreen-own-libcxx">,
++  HelpText<"The C++ library linked is this toolchain's libc++, so aligned "
++           "allocation and sized deallocation are available whatever the "
++           "deployment target">;
+ def object : Flag<["-"], "object">;
+ def o : JoinedOrSeparate<["-"], "o">,
+   Flags<[NoXarchOption]>,
+--- a/clang/lib/Driver/ToolChains/Darwin.cpp
++++ b/clang/lib/Driver/ToolChains/Darwin.cpp
+@@ -3278,16 +3278,23 @@
+ 
+   MachO::addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadKind);
+ 
++  // This toolchain's libc++ defines the aligned and sized operators whatever
++  // the deployment target; the system's, which clang's gates are about, may
++  // not. Its driver config files say which is linked.
++  bool OwnLibcxx = DriverArgs.hasArg(options::OPT_mavergreen_own_libcxx);
++
+   // Pass "-faligned-alloc-unavailable" only when the user hasn't manually
+   // enabled or disabled aligned allocations.
+-  if (!DriverArgs.hasArgNoClaim(options::OPT_faligned_allocation,
++  if (!OwnLibcxx &&
++      !DriverArgs.hasArgNoClaim(options::OPT_faligned_allocation,
+                                 options::OPT_fno_aligned_allocation) &&
+       isAlignedAllocationUnavailable())
+     CC1Args.push_back("-faligned-alloc-unavailable");
+ 
+   // Pass "-fno-sized-deallocation" only when the user hasn't manually enabled
+   // or disabled sized deallocations.
+-  if (!DriverArgs.hasArgNoClaim(options::OPT_fsized_deallocation,
++  if (!OwnLibcxx &&
++      !DriverArgs.hasArgNoClaim(options::OPT_fsized_deallocation,
+                                 options::OPT_fno_sized_deallocation) &&
+       isSizedDeallocationUnavailable())
+     CC1Args.push_back("-fno-sized-deallocation");

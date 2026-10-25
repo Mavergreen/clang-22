@@ -39,7 +39,8 @@ deps="$("$OTOOL" -L "$t/hello" | sed 1d | awk '{print $1}')"
   || { echo "FAIL: hello links other than libSystem and /usr/lib/libc++abi.dylib:"; echo "$deps"; exit 1; }
 
 # Over-aligned allocation, with no flags. clang gates aligned new below 10.13 because the SYSTEM libc++
-# lacked it; this toolchain always links its own libc++.a, which has it (patches/0007).
+# lacked it; through the cfgs this toolchain links its own libc++.a, which has it, and says so
+# (--mavergreen-own-libcxx, patches/0007).
 # Without that, make_unique of an alignas(64) type does not compile, and vector's storage silently gets
 # only malloc's 16-byte alignment.
 cat > "$t/aligned.cpp" <<'EOF'
@@ -95,7 +96,17 @@ printf 'struct S { long v[4]; };\nvoid drop(S *p) { delete p; }\n' > "$t/sized.c
 "$CLANGXX" -std=c++17 -c "$t/sized.cpp" -o "$t/sized.o"
 "$STAGE/bin/llvm-nm" -u "$t/sized.o" | grep -q '__ZdlPvm$' \
   || { echo "FAIL: delete does not call the sized operator delete(void*, size_t)"; exit 1; }
-echo "ok: sized deallocation"
+# The C driver's cfg says so too, for C++ it compiles to link with clang++.
+"$STAGE/bin/clang" -x c++ -std=c++17 -c "$t/sized.cpp" -o "$t/sized-c.o"
+"$STAGE/bin/llvm-nm" -u "$t/sized-c.o" | grep -q '__ZdlPvm$' \
+  || { echo "FAIL: clang -x c++ does not call the sized operator delete"; exit 1; }
+# Without the cfgs, what is linked is the system's libc++, which 10.9's lacks them in: clang's own gates.
+cc1="$("$CLANGXX" --no-default-config --target="$TARGET_TRIPLE" -std=c++17 -c "$t/sized.cpp" -o "$t/nocfg.o" -### 2>&1)"
+for f in -faligned-alloc-unavailable -fno-sized-deallocation; do
+  printf '%s\n' "$cc1" | grep -q -- "\"$f\"" \
+    || { echo "FAIL: without the cfgs, clang does not pass $f for 10.9, so code built against the system's libc++ calls what it lacks"; exit 1; }
+done
+echo "ok: sized deallocation, with the cfgs only"
 
 # A project's own deployment target wins over the cfg's 10.9 default (CMAKE_OSX_DEPLOYMENT_TARGET is
 # passed this way). A versioned --target in the cfgs overrode it: a project asking for 10.12 silently
