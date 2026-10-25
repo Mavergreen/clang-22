@@ -26,6 +26,7 @@ def identity():
     return dict(format=1, revision=revision, version=os.environ['PKG_VERSION'],
                 llvm=os.environ['LLVM_VERSION'], recaulk=os.environ['RECAULK_VERSION'],
                 sdk=os.environ['SDK_PIN'],
+                sdk_settings=json.loads(os.environ.get('SDK_SETTINGS_JSON') or 'null'),
                 patches={p.name: digest(p) for p in sorted((root/'patches').glob('*.patch'))})
 
 

@@ -43,6 +43,23 @@ with tempfile.TemporaryDirectory(prefix='linux assembly ') as t:
     identity_file.write_text(json.dumps(identity))
     assert run(True)
     assert (out/'SDKs/MacOSX10.9.sdk').resolve()==sdk.resolve()
+    # Shipyard adds this exact metadata to SDKs that originally ship only a plist.
+    settings={'CanonicalName':'macosx10.9','MaximumDeploymentTarget':'10.9','Version':'10.9'}
+    identity['sdk_settings']=settings
+    identity_file.write_text(json.dumps(identity))
+    metadata=sdk/'SDKSettings.json';metadata.write_text(json.dumps(settings)+'\n')
+    assert run(True), 'shipyard SDK metadata rejected'
+    identity['sdk_settings']=None;identity_file.write_text(json.dumps(identity))
+    assert not run(False), 'undeclared SDK metadata accepted'
+    identity['sdk_settings']=settings;identity_file.write_text(json.dumps(identity))
+    metadata.write_text(json.dumps(dict(settings,Version='11.0')))
+    assert not run(False), 'changed SDK metadata accepted'
+    metadata.unlink();metadata.symlink_to(sdk/'SDKSettings.plist')
+    assert not run(False), 'symlink substituted for SDK metadata accepted'
+    metadata.unlink();metadata.write_text(json.dumps(settings))
+    extra=sdk/'unapproved.h';extra.write_text('not in the archive')
+    assert not run(False), 'arbitrary extra SDK file accepted'
+    extra.unlink()
     header.write_text('corrupted header')
     assert not run(False), 'reused SDK header corruption accepted'
 
