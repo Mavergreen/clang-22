@@ -276,6 +276,8 @@ echo "    target C++ runtime: $RTREL"
 # -mmacosx-version-min, which silently discarded a project's own deployment target (and so
 # CMAKE_OSX_DEPLOYMENT_TARGET). With the version in -mmacosx-version-min, a project's later one wins.
 CFG_TARGET="${TARGET_TRIPLE%"$MACOS_MIN"}"
+# -headerpad_max_install_names leaves room for install names and rpaths changed after the link, as
+# Apple's ld users expect: ld64.lld's default pad left a dylib 40 bytes, too few for one rpath.
 printf '%s\n' \
   "--target=$CFG_TARGET" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
@@ -283,6 +285,7 @@ printf '%s\n' \
   '-isystem <CFGDIR>/../include/mavericks-compat' \
   '-isystem <CFGDIR>/../include/recaulk' \
   '-Wl,-dead_strip_dylibs' \
+  '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
   '<CFGDIR>/../lib/librecaulk.a' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
@@ -303,6 +306,7 @@ printf '%s\n' \
   '-isystem <CFGDIR>/../include/recaulk' \
   '-nostdlib++' \
   '-Wl,-dead_strip_dylibs' \
+  '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
   '<CFGDIR>/../lib/librecaulk.a' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \

@@ -1,0 +1,44 @@
+Mavergreen's own: llvm-install-name-tool refuses load commands that do not fit, instead of writing them
+over the first section.
+
+Why: in a linked image the sections keep their file offsets, and llvm-objcopy's Mach-O layout grows the
+load commands in place without checking that they still end before the first section does. An
+-add_rpath (or a longer -id or -change) past the header pad overwrote the start of __TEXT,__text and
+exited 0, leaving a file llvm-otool and llvm-lipo reject as malformed. ld64.lld's default pad is small
+(40 bytes spare on a one-function dylib), so relocating a toolchain-built dylib after the fact hit this;
+rust's relocate_prefix did. Apple's install_name_tool refuses the same edit: "larger updated load
+commands do not fit (the program must be relinked, and you may need to use -headerpad or
+-headerpad_max_install_names)". This makes llvm-install-name-tool (and llvm-objcopy on a linked image)
+do the same, naming -headerpad_max_install_names. An edit that still fits, exactly or with room to
+spare, is unchanged. Relocatable objects are laid out afresh and are not affected.
+
+A candidate for upstream. tests/headerpad-test.sh is the regression test.
+
+--- a/llvm/lib/ObjCopy/MachO/MachOLayoutBuilder.cpp
++++ b/llvm/lib/ObjCopy/MachO/MachOLayoutBuilder.cpp
+@@ -458,6 +458,25 @@
+   constructStringTable();
+   updateSymbolIndexes();
+   uint64_t Offset = layoutSegments();
++  // A linked image's sections keep their file offsets, so load commands that
++  // grew past the first one would be written over its contents. Refuse, as
++  // Apple's install_name_tool does, rather than emit a corrupt file.
++  if (O.Header.FileType != MachO::HeaderFileType::MH_OBJECT) {
++    const uint64_t HeaderSize =
++        Is64Bit ? sizeof(MachO::mach_header_64) : sizeof(MachO::mach_header);
++    for (const LoadCommand &LC : O.LoadCommands)
++      for (const std::unique_ptr<Section> &Sec : LC.Sections)
++        if (Sec->hasValidOffset() && Sec->Offset != 0 &&
++            Sec->Offset < HeaderSize + O.Header.SizeOfCmds)
++          return createStringError(
++              errc::not_enough_memory,
++              "not enough header space for the updated load commands "
++              "(%u bytes, but section %s,%s starts at offset %u): relink "
++              "with -headerpad_max_install_names",
++              (unsigned)(HeaderSize + O.Header.SizeOfCmds),
++              Sec->Segname.c_str(), Sec->Sectname.c_str(),
++              (unsigned)Sec->Offset);
++  }
+   Offset = layoutRelocations(Offset);
+   return layoutTail(Offset);
+ }

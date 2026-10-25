@@ -176,6 +176,10 @@ jobs:
       - name: An ARC program for 10.9 links without libarclite
         run: sh tests/arc-link-test.sh
 
+      # What the toolchain links can be relocated, and llvm-install-name-tool refuses what won't fit (patches/0008).
+      - name: Linked dylibs take new rpaths, and overflowing the header pad is refused
+        run: sh tests/headerpad-test.sh
+
       # Exit 77 (cannot execute x86_64) fails this step on purpose: see the test's header.
       - name: Coverage works (profile runtime links, runs, reads back)
         run: sh tests/profile-runtime-test.sh
@@ -379,6 +383,12 @@ jobs:
           set -eu
           REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
           TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/weak-bind-order-test.sh
+
+      - name: Native llvm-install-name-tool refuses load commands that do not fit
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/headerpad-test.sh
 
       - name: Native clang reads a caught value at the exception object's alignment
         run: |
@@ -682,6 +692,7 @@ jobs:
             must env TC=$I/clang22 sh tests/weak-bind-order-test.sh
             must env TC=$I/clang22 sh tests/catch-align-test.sh
             must env TC=$I/clang22 sh tests/arc-link-test.sh
+            must env TC=$I/clang22 sh tests/headerpad-test.sh
             must env TC=$I/clang22 LIBCXX_LIB=$I/libcxx22/lib sh tests/libcxx-runtime-test.sh
             must env TC=$I/clang22 sh tests/profile-runtime-test.sh
             must env TC=$I/clang22 sh tests/tbd-arch-test.sh

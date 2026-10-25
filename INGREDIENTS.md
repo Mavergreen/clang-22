@@ -45,7 +45,11 @@ libarclite, which 10.8 and later do not need and this toolchain does not ship (o
 `0006-libcxx-iostream-init-per-tu.patch`, so a global constructor can use `std::cout` although
 libc++ is linked statically, after the program's objects (ours), and
 `0007-clang-darwin-aligned-sized-alloc-available.patch`, so over-aligned allocation and sized
-delete work for 10.9 with the toolchain's own libc++ (ours). They apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
+delete work for 10.9 with the toolchain's own libc++ (ours), and
+`0008-llvm-objcopy-macho-refuse-header-overflow.patch`, so llvm-install-name-tool refuses load
+commands that outgrow the header pad, as Apple's install_name_tool does, instead of writing them over
+`__text` and exiting 0 (ours). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
+links can take new install names and rpaths afterwards. They apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
 build by name; drop a patch once the new version carries its commit. A change here is a deliberate
 repackage.
 
