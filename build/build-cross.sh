@@ -271,8 +271,13 @@ echo "    target C++ runtime: $RTREL"
 # SDK header and only take effect when code includes the normal header, so a bare -E or an .s file is
 # untouched) plus a static archive resolved at link time. Deliberately NO -include force-header: that
 # breaks build systems that probe the compiler and pollutes assembly.
+#
+# The target names no OS version, so 10.9 is only the default: a versioned --target overrides any
+# -mmacosx-version-min, which silently discarded a project's own deployment target (and so
+# CMAKE_OSX_DEPLOYMENT_TARGET). With the version in -mmacosx-version-min, a project's later one wins.
+CFG_TARGET="${TARGET_TRIPLE%"$MACOS_MIN"}"
 printf '%s\n' \
-  "--target=$TARGET_TRIPLE" \
+  "--target=$CFG_TARGET" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
   "-mmacosx-version-min=$MACOS_MIN" \
   '-isystem <CFGDIR>/../include/mavericks-compat' \
@@ -291,7 +296,7 @@ printf '%s\n' \
 # librecaulk's members) a program does not use, so plain C++ depends on libSystem and
 # /usr/lib/libc++abi.dylib alone, both on every macOS since 10.7.
 printf '%s\n' \
-  "--target=$TARGET_TRIPLE" \
+  "--target=$CFG_TARGET" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
   "-mmacosx-version-min=$MACOS_MIN" \
   '-isystem <CFGDIR>/../include/mavericks-compat' \

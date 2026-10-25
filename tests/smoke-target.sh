@@ -97,6 +97,20 @@ printf 'struct S { long v[4]; };\nvoid drop(S *p) { delete p; }\n' > "$t/sized.c
   || { echo "FAIL: delete does not call the sized operator delete(void*, size_t)"; exit 1; }
 echo "ok: sized deallocation"
 
+# A project's own deployment target wins over the cfg's 10.9 default (CMAKE_OSX_DEPLOYMENT_TARGET is
+# passed this way). A versioned --target in the cfgs overrode it: a project asking for 10.12 silently
+# got 10.9, with at most a -Woverriding-option warning.
+minos() { "$OTOOL" -l "$1" | awk '/LC_VERSION_MIN_MACOSX/ { f = 1 } f && $1 == "version" { print $2; exit }'; }
+[ "$(minos "$t/hello")" = 10.9 ] || { echo "FAIL: default deployment target is $(minos "$t/hello"), not 10.9"; exit 1; }
+for drv in clang clang++; do
+  "$STAGE/bin/$drv" -x c -Werror -mmacosx-version-min=10.12 /dev/null -c -o "$t/dt.o" 2>"$t/dt.err" \
+    || { echo "FAIL: $drv -mmacosx-version-min=10.12 -Werror:"; cat "$t/dt.err"; exit 1; }
+  "$CLANGXX" -mmacosx-version-min=10.12 "$t/hello.cpp" -o "$t/hello1012"
+  [ "$(minos "$t/hello1012")" = 10.12 ] \
+    || { echo "FAIL: -mmacosx-version-min=10.12 gives deployment target $(minos "$t/hello1012")"; exit 1; }
+done
+echo "ok: a project's deployment target wins; the default is 10.9"
+
 # The compat guard: assert the emitted binary is 10.9-safe. Do NOT point it at the arm64 host clang --
 # it asserts arch x86_64 by design and would fail for the wrong reason.
 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$t/hello"
