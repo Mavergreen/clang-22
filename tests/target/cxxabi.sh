@@ -4,6 +4,7 @@ set -eu
 t="$(cd "$(dirname "$0")" && pwd)"
 shapes="$(cat "$t/shapes")"
 fail=0
+"$t/stream-host" "$t/libstream.dylib" "$t/stream-host" || fail=1
 PASSING="one-abi control-new-new control-sys-sys sys-runtime-as-runtime_error sys-runtime-as-exception sys-custom
   sys-any new-runtime-caught-by-sys new-custom-caught-by-sys new-through-sys-frame uncaught-count-across objc-catch-cxx
   objc-raise-through-cxx cxx-catch-objc-any cxx-catch-objc-typed objc-raise-through-sys exception_ptr-across
