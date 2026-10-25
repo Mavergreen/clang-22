@@ -3,7 +3,8 @@
 # SKIP (77) until libcxx22 is staged. Then assert its shape: install names at $LIBCXX_PREFIX; one C++ ABI,
 # the system's (libc++abi.1 re-exports /usr/lib/libc++abi.dylib and libc++ re-exports libc++abi.1), with
 # libSystem as the only other dependency; no rpath and no libunwind; of Recaulk's symbols, exactly its
-# libc++abi back-fills exported, by libc++abi.1 alone; every parity name reachable; 10.9-safe;
+# libc++abi back-fills and the two pointer catch vtables exported, by libc++abi.1 alone; every parity
+# name reachable; 10.9-safe;
 # relocatable.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
@@ -31,7 +32,15 @@ n="$(grep -c '^_' "$T/recaulk" || true)"
 # Recaulk's libc++abi back-fills: the names Wowfunhappy's libc++abi.1.dylib exported that 10.9's lacks.
 grep -E '^(___cxa_|__ZT[IS])' "$T/recaulk" > "$T/recaulk-cxxabi" || true
 [ -s "$T/recaulk-cxxabi" ] || fail "no libc++abi back-fills in $RECAULK_A (older than Recaulk 20261019.1?)"
-grep -v '^#' "$ROOT/build/cxxabi-backfills.txt" > "$T/allowed"
+# ...and the two pointer catch vtables, public, from librecaulk-cxxabi-exports.a, so a program on libcxx22
+# catches by LLVM 22's rules, not 10.9's.
+printf '%s\n' __ZTVN10__cxxabiv119__pointer_type_infoE __ZTVN10__cxxabiv129__pointer_to_member_type_infoE \
+  | LC_ALL=C sort -u - "$T/recaulk-cxxabi" > "$T/libc++abi-want"
+# Allowed ABI-library names: the back-fills, and the two catch vtables, which only answer can_catch for
+# the system's runtime and hold no exception state of their own.
+{ grep -v '^#' "$ROOT/build/cxxabi-backfills.txt"
+  printf '%s\n' __ZTVN10__cxxabiv119__pointer_type_infoE __ZTVN10__cxxabiv129__pointer_to_member_type_infoE
+} | LC_ALL=C sort -u > "$T/allowed"
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
 for f in "$SDK/usr/lib/libc++abi.dylib" "$SDK/usr/lib/libc++abi.tbd"; do [ -f "$f" ] && exports "$f" "$T/sys" && break; done
 [ -s "$T/sys" ] || fail "no exports read from the 10.9 SDK's libc++abi"
@@ -85,8 +94,8 @@ $own"
       [ -z "$both" ] || fail "$lib exports Recaulk symbols:
 $both" ;;
     libc++abi.1)
-      cmp -s "$T/$lib" "$T/recaulk-cxxabi" || fail "$lib exports other than Recaulk's libc++abi back-fills:
-$(diff "$T/recaulk-cxxabi" "$T/$lib")" ;;
+      cmp -s "$T/$lib" "$T/libc++abi-want" || fail "$lib exports other than Recaulk's libc++abi back-fills and the two catch vtables:
+$(diff "$T/libc++abi-want" "$T/$lib")" ;;
   esac
   echo "ok $lib: $(wc -l < "$T/$lib" | tr -d ' ') exports"
 done

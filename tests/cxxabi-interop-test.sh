@@ -76,6 +76,11 @@ elif [ -f "$LIBCXX_LIB/libc++.1.dylib" ] && [ -f "$LIBCXX_LIB/libc++abi.1.dylib"
     -isystem "$TC/include/recaulk" -o "$t/interop-dylib" \
     -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" "$TC/lib/librecaulk.a" -lobjc \
     || { echo "FAIL: could not build interop.mm against libcxx22"; exit 1; }
+  # ...and on libcxx22, its libc++abi.1.dylib exports them, ahead of the system's it re-exports.
+  for vt in __ZTVN10__cxxabiv119__pointer_type_infoE __ZTVN10__cxxabiv129__pointer_to_member_type_infoE; do
+    "$TC/bin/llvm-nm" -gU "$LIBCXX_LIB/libc++abi.1.dylib" | grep -q " $vt\$" \
+      || { echo "FAIL: libcxx22's libc++abi.1.dylib does not export $vt, so programs on it keep 10.9's catch rules"; exit 1; }
+  done
   shapes="static dylib"
 else
   echo "note: libcxx22 not staged at $LIBCXX_LIB -- the dylib shape is not checked"

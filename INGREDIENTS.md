@@ -98,6 +98,19 @@ repo's Recaulk pin is also its C++ runtime's. The aligned and sized new and dele
 `libc++abi.1.dylib` to `libc++.1.dylib`, which defines them; every name the parity references export
 stays reachable through `libc++.1.dylib`. `tests/cxxabi-interop-test.sh` is the gate.
 
+**Catch rules, LLVM 22's, on the system's runtime.** 10.9's libc++abi catches a thrown `nullptr` as no
+member pointer, an `int**` as no `const int* const*`, and a null derived pointer as a non-null base.
+Recaulk's `__pointer_type_info` and `__pointer_to_member_type_info` vtables (from 20261025.4) answer
+those questions instead, with the system's runtime and exception state otherwise untouched. A program
+clang22 links statically gets `librecaulk.a`'s copies, hidden in it; libcxx22's `libc++abi.1.dylib`
+exports the public ones from `librecaulk-cxxabi-exports.a`, linked ahead of its re-export of the
+system's, so a program linked against libcxx22 gets them too. A program linked against an earlier
+libcxx22 recorded the system's libc++abi for them and keeps 10.9's rules until relinked; one built
+against Wowfunhappy's `libc++abi.1.dylib` looks them up there, and gets ours. Apple's own libraries
+keep 10.9's rules for their own `catch` clauses, and `catch (void *)` of a function pointer stays 10.9's
+everywhere: `void*`'s type_info is the system's. `tests/cxxabi-interop-test.sh` runs the cases on both
+shapes, and `tests/libcxx-shape-test.sh` checks `libc++abi.1.dylib` exports exactly the two.
+
 Because every link through the cfgs gets those operators from the toolchain's libc++, the cfgs pass
 `--mavergreen-own-libcxx` (patches/0007), which has clang treat aligned allocation and sized
 deallocation as available for every macOS target. clang marks them unavailable below 10.13 and 10.12

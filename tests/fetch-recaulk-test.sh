@@ -22,6 +22,7 @@ pkgbuild --root "$T/base" --identifier dev.mavergreen.base --version 1 "$T/base.
 # Real recaulk component.
 mkdir -p "$T/rc/$L" "$T/rc/usr/local/mavergreen/recaulk/include/recaulk"
 ar rcs "$T/rc/$L/librecaulk.a" "$T/probe.o"
+ar rcs "$T/rc/$L/librecaulk-cxxabi-exports.a" "$T/probe.o"
 printf '/* time.h */\n' > "$T/rc/usr/local/mavergreen/recaulk/include/recaulk/time.h"
 pkgbuild --root "$T/rc" --identifier dev.mavergreen.recaulk --version 1 "$T/rc.pkg" >/dev/null 2>&1
 
@@ -42,6 +43,8 @@ run || fail "happy path exited non-zero"
 lib="$(tail -n 1 "$T/out")"
 cmp "$lib" "$T/rc/$L/librecaulk.a" || fail "printed lib is not the recaulk component's (decoy?)"
 [ -f "$T/work/recaulk/include/recaulk/time.h" ] || fail "headers not extracted"
+cmp "$T/work/recaulk/lib/librecaulk-cxxabi-exports.a" "$T/rc/$L/librecaulk-cxxabi-exports.a" \
+  || fail "librecaulk-cxxabi-exports.a, libcxx22's catch vtables, not extracted"
 
 : > "$DIR/SHA256SUMS"
 if run; then fail "unlisted pkg accepted"; fi
@@ -83,9 +86,15 @@ pkgbuild --root "$T/noinc" --identifier dev.mavergreen.recaulk --version 1 "$T/n
 productbuild --package "$T/base.pkg" --package "$T/noinc.pkg" "$T/noinc-prod.pkg" >/dev/null 2>&1
 variant "$T/noinc-prod.pkg" 'include/recaulk in the'
 
+# Right component, but no librecaulk-cxxabi-exports.a, libcxx22's catch vtables (Recaulk before 20261025.4).
+mkdir -p "$T/noexp/$L" "$T/noexp/usr/local/mavergreen/recaulk/include/recaulk"; cp "$T/rc/$L/librecaulk.a" "$T/noexp/$L/"
+pkgbuild --root "$T/noexp" --identifier dev.mavergreen.recaulk --version 1 "$T/noexp.pkg" >/dev/null 2>&1
+productbuild --package "$T/base.pkg" --package "$T/noexp.pkg" "$T/noexp-prod.pkg" >/dev/null 2>&1
+variant "$T/noexp-prod.pkg" 'lib/librecaulk-cxxabi-exports.a in the'
+
 # Library without an x86_64 slice (i386: this 10.9 cc cannot target arm64).
 if "$CC_" -arch i386 -c "$T/probe.c" -o "$T/probe32.o" >/dev/null 2>&1; then
-  mkdir -p "$T/i386/$L"; ar rcs "$T/i386/$L/librecaulk.a" "$T/probe32.o"
+  mkdir -p "$T/i386/$L"; ar rcs "$T/i386/$L/librecaulk.a" "$T/probe32.o"; cp "$T/rc/$L/librecaulk-cxxabi-exports.a" "$T/i386/$L/"
   mkdir -p "$T/i386/usr/local/mavergreen/recaulk/include/recaulk"
   pkgbuild --root "$T/i386" --identifier dev.mavergreen.recaulk --version 1 "$T/i386.pkg" >/dev/null 2>&1
   productbuild --package "$T/base.pkg" --package "$T/i386.pkg" "$T/i386-prod.pkg" >/dev/null 2>&1

@@ -17,6 +17,11 @@
 #                             is libc++abi.1.dylib's, which exports the libc++abi back-fills (-u pulls
 #                             each in by name): those are names his libc++abi.1.dylib exported, so a
 #                             program bound to it looks for them here.
+#   librecaulk-cxxabi-exports.a  libc++abi.1.dylib's alone: the __pointer_type_info and
+#                             __pointer_to_member_type_info vtables, public, with LLVM 22's catch rules.
+#                             Linked AHEAD of the re-export of the system's, so they are its own and every
+#                             program that reaches the C++ ABI through libcxx22 catches by them; one
+#                             linked statically gets librecaulk.a's hidden copies instead.
 #   -exported_symbols_list    each dylib's own interface and nothing else.
 #   -application_extension    marks both MH_APP_EXTENSION_SAFE, as Apple's libc++ is, so an extension or
 #                             an extension-safe library (libswiftCore) links them on a macOS that has
@@ -59,6 +64,8 @@ set -- "$CROSS_STAGE"/lib/clang/*/lib/darwin/libclang_rt.osx.a
 [ -f "$1" ] || { echo "FATAL: no compiler-rt builtins (lib/clang/*/lib/darwin/libclang_rt.osx.a) under $CROSS_STAGE" >&2; exit 1; }
 RECAULK_A="$CROSS_STAGE/lib/librecaulk.a"
 [ -f "$RECAULK_A" ] || { echo "FATAL: $RECAULK_A missing -- run build-cross.sh first" >&2; exit 1; }
+RECAULK_EXPORTS_A="$WORK/recaulk/lib/librecaulk-cxxabi-exports.a"
+[ -f "$RECAULK_EXPORTS_A" ] || { echo "FATAL: $RECAULK_EXPORTS_A missing -- run build-cross.sh first" >&2; exit 1; }
 echo "==> runtimes archives: ${RTDIR#"$CROSS_STAGE"/}"
 
 EXP="$WORK/libcxx-exports"
@@ -75,6 +82,10 @@ grep -v ': no symbols$' "$EXP/libc++.err" >&2 || true
 # Recaulk's libc++abi back-fills: its __cxa_ functions and the type_info objects (__ZTI/__ZTS).
 mav_export_list "$RECAULK_A" > "$EXP/recaulk.all" || exit 1
 grep -E '^(___cxa_|__ZT[IS])' "$EXP/recaulk.all" > "$EXP/libc++abi.exp" || true
+mav_export_list "$RECAULK_EXPORTS_A" > "$EXP/recaulk-cxxabi-exports" || exit 1
+[ "$(wc -l < "$EXP/recaulk-cxxabi-exports" | tr -d ' ')" = 2 ] \
+  || { echo "FATAL: $RECAULK_EXPORTS_A defines other than the two catch vtables:" >&2; cat "$EXP/recaulk-cxxabi-exports" >&2; exit 1; }
+cat "$EXP/recaulk-cxxabi-exports" >> "$EXP/libc++abi.exp"
 for lib in libc++ libc++abi; do
   [ -s "$EXP/$lib.exp" ] || { echo "FATAL: nothing for $lib.1.dylib to export (is Recaulk older than 20261019.1?)" >&2; exit 1; }
   echo "    $lib.exp: $(wc -l < "$EXP/$lib.exp" | tr -d ' ') symbols"
@@ -85,10 +96,10 @@ while read -r sym; do set -- "$@" "-Wl,-u,$sym"; done < "$EXP/libc++abi.exp"
 echo "==> link"
 LINK="--no-default-config --target=$TARGET_TRIPLE -isysroot $SDK -mmacosx-version-min=$MACOS_MIN -fuse-ld=lld -dynamiclib -compatibility_version 1.0.0 -current_version 1.0.0 -Wl,-application_extension"
 "$CC" $LINK -install_name "$LIBCXX_PREFIX/lib/libc++abi.1.dylib" \
-  -Wl,-reexport-lc++abi "$@" "$RECAULK_A" \
+  "$@" "$RECAULK_EXPORTS_A" -Wl,-reexport-lc++abi "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++abi.exp" -o "$OUT/libc++abi.1.dylib"
 "$CC" $LINK -install_name @loader_path/libc++abi.1.dylib \
-  -Wl,-reexport-lc++abi "$@" "$RECAULK_A" \
+  "$@" "$RECAULK_EXPORTS_A" -Wl,-reexport-lc++abi "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++abi.exp" -o "$EXP/libc++abi.1-reexported-as.dylib"
 "$CC" $LINK -install_name "$LIBCXX_PREFIX/lib/libc++.1.dylib" \
   -Wl,-force_load,"$RTDIR/libc++.a" -Wl,-reexport_library,"$EXP/libc++abi.1-reexported-as.dylib" -Wl,-reexport-lc++abi "$RECAULK_A" \

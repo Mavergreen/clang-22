@@ -15,9 +15,12 @@ root="$WORK/recaulk-tree"
 sh "$SHIPYARD_SCRIPTS/fetch_product_pkg.sh" recaulk "$RECAULK_VERSION" "$root" >/dev/null
 [ -f "$root/lib/librecaulk.a" ] || { echo "FATAL: no lib/librecaulk.a in the dev.mavergreen.recaulk payload" >&2; exit 1; }
 [ -d "$root/include/recaulk" ] || { echo "FATAL: no include/recaulk in the dev.mavergreen.recaulk payload" >&2; exit 1; }
+# The pointer catch vtables, public, for libcxx22's libc++abi.1.dylib alone (build/build-libcxx.sh).
+[ -f "$root/lib/librecaulk-cxxabi-exports.a" ] \
+  || { echo "FATAL: no lib/librecaulk-cxxabi-exports.a in the dev.mavergreen.recaulk payload (older than 20261025.4?)" >&2; exit 1; }
 
 rm -rf "$OUT"; mkdir -p "$OUT/lib" "$OUT/include"
-cp "$root/lib/librecaulk.a" "$OUT/lib/"
+cp "$root/lib/librecaulk.a" "$root/lib/librecaulk-cxxabi-exports.a" "$OUT/lib/"
 cp -R "$root/include/recaulk" "$OUT/include/"
 
 # Must be for the target we cross-build against, not the host.
