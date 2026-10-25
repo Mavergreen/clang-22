@@ -53,6 +53,16 @@ def verify_sdk(sdk, prefix):
                             raise ValueError(f'SDK contents changed: {relative}')
                 else:
                     raise ValueError(f'unsupported SDK member: {relative}')
+            # Shipyard may add metadata absent from Apple's original archive.
+            # Accept only the exact declared values carried in this toolchain.
+            metadata=sdk/'SDKSettings.json'
+            if 'SDKSettings.json' not in expected_paths and (metadata.exists() or metadata.is_symlink()):
+                settings=identity.get('sdk_settings')
+                if not settings or metadata.is_symlink() or not metadata.is_file():
+                    raise ValueError('SDK metadata is not a declared regular file')
+                if json.loads(metadata.read_text())!=settings:
+                    raise ValueError('SDK metadata differs from the shipyard declaration')
+                expected_paths.add('SDKSettings.json')
             actual_paths={p.relative_to(sdk).as_posix() for p in sdk.rglob('*')}
             if actual_paths!=expected_paths:
                 raise ValueError('SDK contains files not present in the pinned archive')
