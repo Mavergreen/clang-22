@@ -1,9 +1,12 @@
 #!/bin/sh
 # platform: host-agnostic
-#   usage: target-manifest.sh record STAGE | verify EXPORT -- check content and this checkout's identity
+#   usage: target-manifest.sh record STAGE | verify EXPORT | export STAGE OUT
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
-[ $# -eq 2 ] || { echo 'usage: target-manifest.sh record STAGE | verify EXPORT' >&2; exit 2; }
+case "$#:${1:-}" in
+  2:record|2:verify|3:export) ;;
+  *) echo 'usage: target-manifest.sh record STAGE | verify EXPORT | export STAGE OUT' >&2; exit 2 ;;
+esac
 . "$HERE/versions.sh"
 . "$SHIPYARD_SCRIPTS/sdk-pins.sh"
 SDK_PIN="$(shipyard_sdk_pin x86_64)"; export SDK_PIN
