@@ -52,6 +52,11 @@ ours() {
     -framework Foundation "$t/libsys.dylib"
 }
 
+# Static libc++ must not mix per-image locale state when a C++ plugin is loaded.
+"$TC/bin/clang++" -std=c++20 -dynamiclib "$HERE/cxxabi/stream-plugin.cpp" \
+  -o "$t/libstream.dylib" -install_name @loader_path/libstream.dylib
+"$TC/bin/clang++" -std=c++20 "$HERE/cxxabi/stream-host.cpp" -o "$t/stream-host"
+
 shapes="static"
 ours "$TC/bin/clang++" -o "$t/interop-static" || { echo "FAIL: the toolchain's clang++ could not build interop.mm"; exit 1; }
 # Its pointer and member-pointer handlers catch by LLVM 22's rules on 10.9 too: the cfg's librecaulk.a

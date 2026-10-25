@@ -307,11 +307,14 @@ printf '%s\n' \
   > "$STAGE/bin/clang++.cfg"
 # portable-ld: the real ld64.lld, then the x86_64 libc++ appended LAST, then the system's libc++abi it
 # is built on (step 3), found under the -syslibroot the driver passes. Resolves its own dir, so the
-# toolchain stays relocatable.
+# toolchain stays relocatable. Keep the static C++ library private to each image:
+# a dlopened plugin otherwise initializes a stream with its own locale singleton,
+# then a coalesced destructor in the executable tries to free that static singleton.
+# The system libc++abi remains shared; tests/cxxabi-interop-test.sh covers both.
 printf '%s\n' '#!/bin/sh' \
   'DIR="$(cd "$(dirname "$0")" && pwd)"' \
   'RT="$DIR/../'"$RTREL"'"' \
-  'exec "$DIR/ld64.lld" "$@" "$RT/libc++.a" -lc++abi' \
+  'exec "$DIR/ld64.lld" "$@" -load_hidden "$RT/libc++.a" -lc++abi' \
   > "$STAGE/bin/portable-ld"
 chmod +x "$STAGE/bin/portable-ld"
 
