@@ -8,13 +8,17 @@ PASSING="one-abi control-new-new control-sys-sys sys-runtime-as-runtime_error sy
   sys-any new-runtime-caught-by-sys new-custom-caught-by-sys new-through-sys-frame uncaught-count-across objc-catch-cxx
   objc-raise-through-cxx cxx-catch-objc-any cxx-catch-objc-typed objc-raise-through-sys exception_ptr-across
   make_exception_ptr promise-set-exception uncaught_exceptions bad_array_new_length char8_t const-char8_t-pointer"
+# The static shape links Recaulk's pointer catch rules ahead of libc++abi's; libcxx22 does not export
+# them yet, so a program on it keeps 10.9's.
+STATIC_ONLY="catch-nullptr-member catch-multi-level catch-null-derived catch-sys-multi-level"
 TERMINATING="terminate-ours-through-sys terminate-sys terminate-noexcept"
 for s in $shapes; do
   run_case() {
     if [ "$s" = dylib ]; then env DYLD_FALLBACK_LIBRARY_PATH="$t/libcxx" "$@"
     else "$@"; fi
   }
-  for c in $PASSING; do
+  cases="$PASSING"; [ "$s" != static ] || cases="$PASSING $STATIC_ONLY"
+  for c in $cases; do
     out="$(run_case "$t/interop-$s" "$c" 2>&1)" && rc=0 || rc=$?
     if [ "$rc" = 0 ] && printf '%s\n' "$out" | grep -q "^PASS $c:" && ! printf '%s\n' "$out" | grep -q 'pointer being freed'; then echo "ok $s $c"
     else echo "FAIL $s $c (exit $rc): $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-200)"; fail=1; fi

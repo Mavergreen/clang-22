@@ -54,6 +54,14 @@ ours() {
 
 shapes="static"
 ours "$TC/bin/clang++" -o "$t/interop-static" || { echo "FAIL: the toolchain's clang++ could not build interop.mm"; exit 1; }
+# Its pointer and member-pointer handlers catch by LLVM 22's rules on 10.9 too: the cfg's librecaulk.a
+# must supply the two vtables they point at (Recaulk's cxxabi_pointer_catch.c, private to the program),
+# ahead of /usr/lib/libc++abi.dylib's. Checked here on any host; the catch-* cases run them.
+for vt in __ZTVN10__cxxabiv119__pointer_type_infoE __ZTVN10__cxxabiv129__pointer_to_member_type_infoE; do
+  "$TC/bin/llvm-nm" -m "$t/interop-static" | grep -q "non-external (was a private external) $vt\$" \
+    || { echo "FAIL: the toolchain's clang++ takes $vt from libc++abi, not Recaulk, so 10.9's catch rules apply"; exit 1; }
+done
+echo "ok: the pointer catch rules are linked in"
 RUN_DYLIB=""
 # dyld tries the install name first, so with libcxx22 installed a staged copy would never load (as
 # tests/libcxx-runtime-test.sh): the run would test the installed one.

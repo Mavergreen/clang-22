@@ -25,6 +25,9 @@ struct Counted : std::runtime_error { Counted() : std::runtime_error("counted") 
 struct Peek { int *out; ~Peek() { *out = std::uncaught_exceptions(); } };
 [[gnu::noinline]] static void thrower() noexcept(false) { throw 1; }
 [[gnu::noinline]] static void nothrow_wrapper() noexcept { thrower(); }
+struct B1 { int a; };
+struct B2 { int b; };
+struct D : B1, B2 { int d; };
 
 static int ok(const char *c, bool pass, const char *detail) {
   std::printf("%s %s: %s (dtors=%d)\n", pass ? "PASS" : "FAIL", c, detail, g_dtors);
@@ -158,6 +161,25 @@ int main(int argc, char **argv) {
     static const char8_t s[] = u8"y";
     try { throw s; } catch (const char8_t *p) { return ok(c, p == s, "caught as const char8_t*"); } catch (...) {}
     return ok(c, false, "not caught as const char8_t*");
+  }
+  // Pointer and member-pointer catch rules, LLVM 22's on 10.9 too: Recaulk's cxxabi_pointer_catch.c,
+  // linked through the cfg, answers for this program's handlers. 10.9's libc++abi fails all four.
+  if (!std::strcmp(c, "catch-nullptr-member")) {
+    try { throw nullptr; } catch (int Custom::*p) { return ok(c, p == nullptr, p == nullptr ? "caught as a null int Custom::*" : "caught as a non-null int Custom::*"); } catch (...) {}
+    return ok(c, false, "a thrown nullptr was not caught as int Custom::*");
+  }
+  if (!std::strcmp(c, "catch-multi-level")) {
+    static int i = 4, *pi = &i;
+    try { throw &pi; } catch (const int *const *q) { return ok(c, q == &pi, "caught as const int* const*"); } catch (...) {}
+    return ok(c, false, "a thrown int** was not caught as const int* const*");
+  }
+  if (!std::strcmp(c, "catch-null-derived")) {
+    try { throw static_cast<D *>(nullptr); } catch (B2 *q) { return ok(c, q == nullptr, q == nullptr ? "caught as a null B2*" : "caught as a non-null B2*"); } catch (...) {}
+    return ok(c, false, "a thrown null D* was not caught as B2*");
+  }
+  if (!std::strcmp(c, "catch-sys-multi-level")) {  // thrown by the system's libc++, caught by our rules
+    try { sys_throw_int_pp(); } catch (const int *const *q) { return ok(c, q == sys_int_pp, "caught as const int* const*"); } catch (...) {}
+    return ok(c, false, "sys's int** was not caught as const int* const*");
   }
   if (!std::strcmp(c, "terminate-ours-through-sys")) { sys_pass_through(new_throw_runtime); return 0; }
   if (!std::strcmp(c, "terminate-sys")) { sys_throw_runtime(); return 0; }

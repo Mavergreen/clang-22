@@ -26,6 +26,9 @@ else:
  output.chmod(0o755)
 ''');compiler.chmod(0o755)
  (tc/'bin/clang').symlink_to('clang++')
+ nm=tc/'bin/llvm-nm'
+ nm.write_text('#!/bin/sh\nfor vt in __ZTVN10__cxxabiv119__pointer_type_infoE __ZTVN10__cxxabiv129__pointer_to_member_type_infoE; do\n echo "0000000100005000 (__DATA,__const) non-external (was a private external) $vt"\ndone\n')
+ nm.chmod(0o755)
  (scripts/'assert_binary_compatible.sh').write_text('#!/bin/sh\nexit 0\n')
  env=dict(os.environ,TC=str(tc),SHIPYARD_SCRIPTS=str(scripts),TEST_PHASE='build',TEST_OUT=str(t/'bundle'),EXECUTION_MARKER=str(t/'executed'))
  r=subprocess.run(['sh',str(root/'tests/catch-align-test.sh')],env=env,capture_output=True,text=True)

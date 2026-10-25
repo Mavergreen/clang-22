@@ -15,6 +15,9 @@ extern "C" int sys_call_and_catch(void (*f)(void)) {
   catch (...) { return 4; }
 }
 extern "C" void sys_pass_through(void (*f)(void)) { Guard g{"sys"}; f(); }
+static int sys_int = 3, *sys_int_p = &sys_int;
+int **sys_int_pp = &sys_int_p;
+extern "C" void sys_throw_int_pp(void) { throw sys_int_pp; }
 static int seen = -1;
 // 10.9's libc++ predates std::uncaught_exceptions(); the bool form reads the same per-thread count
 struct Peek { ~Peek() { seen = std::uncaught_exception() ? 1 : 0; } };
