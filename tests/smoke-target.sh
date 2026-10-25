@@ -23,6 +23,13 @@ if [ ! -e "$STAGE/SDKs/MacOSX10.9.sdk" ]; then
   SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"; ln -sfn "$SDK" "$STAGE/SDKs/MacOSX10.9.sdk"
 fi
 
+# The emitted program runs on an x86_64 Mac, or under Rosetta on an arm64 one; not on Linux, which
+# also builds this toolchain and reports x86_64 too.
+runs_target() {
+  [ "$(uname -s)" = Darwin ] || return 1
+  [ "$(uname -m)" = x86_64 ] || arch -x86_64 /usr/bin/true 2>/dev/null
+}
+
 t="$(mktemp -d "${TMPDIR:-/tmp}/smoke-target.XXXXXX")"; trap 'rm -rf "$t"' EXIT   # template: 10.9 BSD mktemp requires one
 cat > "$t/hello.cpp" <<'EOF'
 #include <iostream>
@@ -61,7 +68,7 @@ int main() {
 EOF
 "$CLANGXX" -std=c++17 -O1 "$t/aligned.cpp" -o "$t/aligned" \
   || { echo "FAIL: over-aligned allocation does not compile with the default flags"; exit 1; }
-if [ "$(uname -m)" = x86_64 ] || arch -x86_64 /usr/bin/true 2>/dev/null; then
+if runs_target; then
   out="$("$t/aligned")" || { echo "FAIL: over-aligned allocation: $out"; exit 1; }
   echo "ok: over-aligned allocation ($out)"
 else
@@ -78,7 +85,7 @@ struct Early { Early() { std::cout << "early "; } } early;
 int main() { std::cout << "main\n"; return 0; }
 EOF
 "$CLANGXX" -std=c++17 "$t/early.cpp" -o "$t/early"
-if [ "$(uname -m)" = x86_64 ] || arch -x86_64 /usr/bin/true 2>/dev/null; then
+if runs_target; then
   out="$("$t/early")" || { echo "FAIL: std::cout from a global constructor crashed"; exit 1; }
   [ "$out" = 'early main' ] || { echo "FAIL: std::cout from a global constructor: $out"; exit 1; }
   echo "ok: std::cout from a global constructor"
