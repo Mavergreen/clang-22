@@ -109,7 +109,11 @@ libcxx22 recorded the system's libc++abi for them and keeps 10.9's rules until r
 against Wowfunhappy's `libc++abi.1.dylib` looks them up there, and gets ours. Apple's own libraries
 keep 10.9's rules for their own `catch` clauses, and `catch (void *)` of a function pointer stays 10.9's
 everywhere: `void*`'s type_info is the system's. `tests/cxxabi-interop-test.sh` runs the cases on both
-shapes, and `tests/libcxx-shape-test.sh` checks `libc++abi.1.dylib` exports exactly the two.
+shapes, and `tests/libcxx-shape-test.sh` checks `libc++abi.1.dylib` exports exactly the two. Before
+every release, `tests/libcxxabi-suite-test.sh` runs LLVM's own libc++abi tests on the 10.9 guest in both
+shapes, and each result must match `tests/libcxxabi/expected.txt`: 54 pass, and 9 fail for reasons
+10.9's runtime gives, each named there. A change to the catch rules that breaks one of the 54, or fixes
+one of the 9 without updating the list, stops the release.
 
 Because every link through the cfgs gets those operators from the toolchain's libc++, the cfgs pass
 `--mavergreen-own-libcxx` (patches/0007), which has clang treat aligned allocation and sized

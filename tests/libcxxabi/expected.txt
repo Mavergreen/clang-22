@@ -1,0 +1,74 @@
+# LLVM's libc++abi tests on Mac OS X 10.9, in tests/libcxxabi-suite-test.sh's two shapes.
+#   <test> <static|dylib|both> <pass|fail|skip> [reason]
+# Every test the suite has gets a line. "fail" is a result 10.9's own libc++abi gives a program
+# clang22 builds, which the toolchain does not (yet) fix; a test that starts passing moves to "pass"
+# in the same change, and one that starts failing is a regression. "skip" is a test that cannot mean
+# anything here.
+backtrace_test both pass
+catch_array_01 both pass
+catch_array_02 both pass
+catch_class_01 both pass
+catch_class_02 both pass
+catch_class_03 both pass
+catch_class_04 both pass
+catch_const_pointer_nullptr both pass
+catch_function_01 both fail 10.9 catches a function pointer as void* (QUEUE: accepted; Recaulk cxxabi_pointer_catch.c leaves __function_type_info alone)
+catch_function_02 both pass
+catch_function_03 both pass
+catch_in_noexcept both pass
+catch_member_data_pointer_01 both pass
+catch_member_function_pointer_01 both pass
+catch_member_function_pointer_02 both pass
+catch_member_pointer_nullptr both pass
+catch_multi_level_pointer both pass
+catch_null_pointer_to_object_pr64953 both pass
+catch_pointer_nullptr both pass
+catch_pointer_reference both pass
+catch_ptr both pass
+catch_ptr_02 both pass
+catch_reference_nullptr both pass
+cxa_bad_cast both pass
+cxa_bad_typeid both pass
+cxa_call_terminate both pass
+cxa_thread_atexit_test both skip REQUIRES: linux
+cxa_vec_new_overflow_PR41395 both fail 10.9 __cxa_vec_new* do not check the size for overflow (upstream XFAIL before LLVM 9; QUEUE: candidate for Recaulk)
+dynamic_cast both fail 10.9 __dynamic_cast is the stateful one (upstream XFAIL before LLVM 9; QUEUE: candidate for Recaulk)
+dynamic_cast14 both pass
+dynamic_cast3 both pass
+dynamic_cast5 both pass
+exception_object_alignment.2 both pass
+exception_object_alignment both fail 10.9 places the thrown object 8 bytes past a 16-byte boundary (patches/0003 is the compiler side)
+forced_unwind1 both fail 10.9 system libc++abi (upstream XFAIL: stdlib=system on macOS 10.9 to 10.15)
+forced_unwind2 both fail 10.9 system libc++abi (upstream XFAIL: stdlib=system on macOS 10.9 to 10.15)
+forced_unwind3 both pass
+forced_unwind4 both pass
+guard_test_basic both pass
+guard_threaded_test both pass
+inherited_exception both pass
+namespace.compile both pass
+noexception1 both skip REQUIRES: no-exceptions, a libc++abi built without exceptions; 10.9 has none
+noexception2 both skip REQUIRES: no-exceptions, a libc++abi built without exceptions; 10.9 has none
+noexception3 both skip REQUIRES: no-exceptions, a libc++abi built without exceptions; 10.9 has none
+noexception4 both skip REQUIRES: no-exceptions, a libc++abi built without exceptions; 10.9 has none
+test_aux_runtime both pass
+test_aux_runtime_op_array_new both pass
+test_demangle both fail 10.9 __cxa_demangle predates manglings LLVM 20 and 21 added (upstream UNSUPPORTED before them)
+test_exception_address_alignment both fail the 10.9 SDK unwind.h aligns _Unwind_Exception to 8, not 16 (a compile-time check)
+test_exception_storage both pass
+test_exception_storage.threads both pass
+test_fallback_malloc both pass
+test_guard both pass
+test_vector1 both pass
+test_vector2 both pass
+test_vector3 both pass
+thread_local_destruction_order both fail on 10.9 a thread_local destructor runs out of order (its line-33 assert); not yet investigated
+uncaught_exception both pass
+uncaught_exceptions both pass
+unittest_demangle both pass
+unwind_01 both pass
+unwind_02 both pass
+unwind_03 both pass
+unwind_04 both pass
+unwind_05 both pass
+unwind_06 both pass
+incomplete_type both pass
