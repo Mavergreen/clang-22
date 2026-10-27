@@ -4,6 +4,9 @@ Clang/LLVM toolchain for Mac OS X 10.9 Mavericks.
 
 ## Compiling
 
+Both packages need the Mac OS X 10.9 SDK from [Longboat](https://github.com/Mavergreen/longboat)
+first, and refuse to install without it: install Longboat, then its `sdk install 10.9`.
+
 ### Directly on Mavericks
 
 ```sh
@@ -20,8 +23,8 @@ clang++-22 -o hello hello.cpp
 ### From Apple Silicon
 
 ```sh
-sudo installer -pkg mavericks-clang-22-cross-<version>.pkg -target /
 sudo longboat sdk install 10.9
+sudo installer -pkg mavericks-clang-22-cross-<version>.pkg -target /
 ```
 
 In a new Terminal:

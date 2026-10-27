@@ -29,7 +29,7 @@ scr="$OUTDIR/pkg-scripts-native"; rm -rf "$scr"
 set -- --stage "$PAYLOAD" --product "clang${CLANG_LINE}" --name "Clang ${CLANG_LINE} for Mavericks" \
   --group clang --line "$CLANG_LINE" --version "$VER" \
   --exclude "bin/clang-${CLANG_LINE}" --exclude bin/clang.cfg --exclude bin/clang++.cfg --exclude bin/portable-ld \
-  --requires longboat --scripts-out "$scr"
+  --requires sdk109 --scripts-out "$scr"
 if [ -n "$UPD_APP" ] && [ -d "$UPD_APP" ]; then
   set -- "$@" --updater-app "$UPD_APP"
 else

@@ -66,10 +66,13 @@ for p in "$DIST"/mavericks-clang-*-native-*.pkg "$DIST"/mavericks-clang-*-cross-
   fi
   pre="$(ls "$x"/mavericks-clang-*-component.pkg/Scripts/preinstall)"
   E="$W/empty-vol-$(basename "$p")"; mkdir -p "$E"
-  if sh "$pre" x x "$E" > "$W/pre.out" 2>&1; then fail "$(basename "$p"): the preinstall refuses a volume without Longboat"; fi
-  grep -q 'longboat' "$W/pre.out" || { cat "$W/pre.out"; fail "$(basename "$p"): the refusal names Longboat"; }
+  # The toolchains need the SDK, not Longboat itself: they require Longboat's sdk109, which
+  # `longboat sdk install 10.9` installs, and a volume with Longboat but no SDK is refused.
   mkdir -p "$E/usr/local/mavergreen/longboat"; : > "$E/usr/local/mavergreen/longboat/mavergreen.plist"
-  sh "$pre" x x "$E" > "$W/pre.out" 2>&1 || { cat "$W/pre.out"; fail "$(basename "$p"): the preinstall proceeds once Longboat is installed"; }
+  if sh "$pre" x x "$E" > "$W/pre.out" 2>&1; then fail "$(basename "$p"): the preinstall refuses a volume without Longboat's sdk109"; fi
+  grep -q 'sdk109.*longboat' "$W/pre.out" || { cat "$W/pre.out"; fail "$(basename "$p"): the refusal names sdk109 and where Longboat is"; }
+  mkdir -p "$E/usr/local/mavergreen/sdk109"; : > "$E/usr/local/mavergreen/sdk109/mavergreen.plist"
+  sh "$pre" x x "$E" > "$W/pre.out" 2>&1 || { cat "$W/pre.out"; fail "$(basename "$p"): the preinstall proceeds once sdk109 is installed"; }
 done
 grep -q 'os-version min="11.0"' "$W"/x-mavericks-clang-*-cross-*.pkg/Distribution || fail "the cross archive's floor is 11.0 (R3)"
 N="clang$CLANG_LINE"; X="clang$CLANG_LINE-cross"

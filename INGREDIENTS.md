@@ -13,7 +13,7 @@ upstream, via `.github/workflows/repackage-on-ingredient-bump.yml`.
 | LLVM release-signing keys | `keys/llvm-release.asc` | ❌ **untrackable — manual refresh** (see below) | not a watched path; a stale bundle fails the build loudly, never silently |
 | MacOSX10.9 SDK | `Mavergreen/shipyard@v1` (`fetch_sdk.sh`) | ✅ github-actions manager tracks the tag | `@v1` is a *moving* tag, so content moves without any path here changing |
 | Sparkle framework (embedded in the updater `.app`) | `Mavergreen/shipyard@v1` (`mavericks_fetch_sparkle`; Sparkle 1.x — the last line that runs on 10.9) | ✅ via `@v1` (github-actions manager) | content moves with `@v1` |
-| longboat (CI only: `on-mavericks` installs it in the 10.9 guest, because clang22's preinstall requires it, and runs `longboat sdk install 10.9` for sdk109; nothing of it ships) | `components/longboat/version` | ✅ `github-releases` on `Mavergreen/longboat`, `YYYYMMDD.N` versioning | no release: nothing shipped changes |
+| longboat (CI only: `on-mavericks` installs it in the 10.9 guest, and runs `longboat sdk install 10.9`, because clang22's preinstall requires sdk109; nothing of it ships) | `components/longboat/version` | ✅ `github-releases` on `Mavergreen/longboat`, `YYYYMMDD.N` versioning | no release: nothing shipped changes |
 | Sparkle EdDSA public key | `updater/ed25519_key.pub` | ❌ untrackable (our own key) | baked into the updater's `Info.plist` as `SUPublicEDKey`; paired with the `SPARKLE_PRIVATE_KEY` secret |
 
 Not ingredients: `build/*.sh` and `native-bootstrap/` are this repo's own recipe — a change there is a
@@ -175,8 +175,8 @@ Machine-read by `artifact-facts.sh` as `- <check>:<glob> : <reason>` (one line e
   `updater/ICON-CREDIT.txt`.
 - **SDK not redistributed** — the Apple MacOSX10.9 SDK is not baked into the artifact (Apple's bytes).
   Both toolchains' `SDKs` is a link to `../sdk109/SDKs`, which Longboat's `sdk109` fills
-  (`sudo longboat sdk install 10.9`), and both pkgs refuse to install without Longboat. Without `sdk109`
-  the first compile fails naming the missing `SDKs/MacOSX10.9.sdk`.
+  (`sudo longboat sdk install 10.9`), and both pkgs refuse to install without `sdk109`: what they need
+  is the SDK, not Longboat itself (shipyard's ruling, 2026-10-27).
 - **No build on 10.9 yet** — the family requires a product's build to run natively on a Mavericks box;
   this repo's does not. `build/build-cross.sh` builds the arm64-hosted cross variant, which needs a
   modern host by nature. `build/build-native.sh` is the one that could run on 10.9 but does not: it
