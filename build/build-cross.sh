@@ -269,6 +269,12 @@ CFG_TARGET="${TARGET_TRIPLE%"$MACOS_MIN"}"
 # --mavergreen-own-libcxx (patches/0007) tells clang the C++ library linked is the toolchain's
 # libc++, as clang++.cfg's portable-ld makes it, so the aligned and sized operators 10.9's own lacks are
 # available; without the cfgs, clang keeps its gates for the system's libc++.
+# librecaulk.a goes at the TAIL of the link, after every input the program names (clang's `$` config
+# options are appended there, and only to a link), so it fills only what is still undefined: a program
+# that brings its own definitions, as rusty_v8's static libc++abi does for codex-cli, keeps them, with no
+# Recaulk member loaded beside them to collide (tests/own-cxxabi-link-test.sh). It still precedes
+# portable-ld's -lc++abi, so the pointer catch rules still beat the system's. A link that names the
+# system's -lc++ or -lc++abi itself now gets those vtables from it, and 10.9's catch rules.
 # -headerpad_max_install_names leaves room for install names and rpaths changed after the link, as
 # Apple's ld users expect: ld64.lld's default pad left a dylib 40 bytes, too few for one rpath.
 printf '%s\n' \
@@ -280,7 +286,7 @@ printf '%s\n' \
   '--mavergreen-own-libcxx' \
   '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
-  '<CFGDIR>/../lib/librecaulk.a' \
+  '$-Wl,<CFGDIR>/../lib/librecaulk.a' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
   > "$STAGE/bin/clang.cfg"
 # The C++ driver additionally links the toolchain's libc++ STATICALLY but GAP-FILLING, so every C++
@@ -301,7 +307,7 @@ printf '%s\n' \
   '--mavergreen-own-libcxx' \
   '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
-  '<CFGDIR>/../lib/librecaulk.a' \
+  '$-Wl,<CFGDIR>/../lib/librecaulk.a' \
   '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
   '--ld-path=<CFGDIR>/portable-ld' \
   > "$STAGE/bin/clang++.cfg"

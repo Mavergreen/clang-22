@@ -17,8 +17,9 @@ $stale"
 B=build/build-cross.sh
 n="$(grep -c -x -F "  '-isystem <CFGDIR>/../include/recaulk' \\" "$B" || true)"
 [ "$n" = 2 ] || fail "$B: want 2 recaulk -isystem cfg lines, got $n"
-n="$(grep -c -x -F "  '<CFGDIR>/../lib/librecaulk.a' \\" "$B" || true)"
-[ "$n" = 2 ] || fail "$B: want 2 librecaulk.a cfg lines, got $n"
+# At the tail of the link (`$`), so a program's own definitions win: tests/own-cxxabi-link-test.sh.
+n="$(grep -c -x -F "  '\$-Wl,<CFGDIR>/../lib/librecaulk.a' \\" "$B" || true)"
+[ "$n" = 2 ] || fail "$B: want 2 tail librecaulk.a cfg lines, got $n"
 
 # 3. the libc++ build's compile and link flags
 grep '^RC=' "$B" | grep -q -F -e '-isystem $RECAULK_INC/recaulk' || fail "RC lacks -isystem \$RECAULK_INC/recaulk"
