@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: Mac OS X 10.9 only -- the expected results are 10.9's libc++abi's; elsewhere it skips (77)
+# platform: macOS-only -- runs on Mac OS X 10.9 alone, whose libc++abi the expected results are; elsewhere it skips (77)
 # LLVM's own libc++abi tests, run on 10.9 against the toolchain as users get it, in both shapes:
 #   static  the toolchain's own `clang++`, no flags: clang++.cfg's libc++.a, Recaulk and -lc++abi.
 #   dylib   libcxx22 (LIBCXX_LIB), whose libc++abi.1.dylib re-exports the system's.
@@ -16,10 +16,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/.." && pwd)"
 . "$ROOT/build/versions.sh"
 TC="${TC:-$WORK/stage$CROSS_PREFIX}"
 LIBCXX_LIB="${LIBCXX_LIB:-$LIBCXX_STAGE/lib}"
-SRC="${LIBCXXABI_TESTS:-$SRC}"
 EXPECTED="$HERE/libcxxabi/expected.txt"
 [ "$(sw_vers -productVersion 2>/dev/null | cut -d. -f1-2)" = 10.9 ] || { echo "not Mac OS X 10.9 -- skipping"; exit 77; }
 [ -x "$TC/bin/clang++" ] || { echo "no toolchain at $TC -- skipping"; exit 77; }
+SRC="${LIBCXXABI_TESTS:?set LIBCXXABI_TESTS to an LLVM source tree holding libcxxabi/ and libcxx/test/support/}"
 [ -f "$LIBCXX_LIB/libc++.1.dylib" ] || { echo "FAIL: libcxx22 not at $LIBCXX_LIB"; exit 1; }
 T="$SRC/libcxxabi/test"
 [ -f "$T/catch_ptr.pass.cpp" ] || { echo "FAIL: libc++abi's tests not at $T"; exit 1; }
