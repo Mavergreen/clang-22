@@ -1,0 +1,3 @@
+#!/bin/sh
+# platform: host-agnostic
+echo fixture bin/llvm-config
