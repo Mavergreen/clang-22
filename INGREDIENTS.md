@@ -200,3 +200,13 @@ remains separately fetched. Host bootstrap inputs are locked in `build/linux/bas
 and `build/linux/packages.lock` (Ubuntu 22.04, GCC 12.3). This is an explicit initial
 Linux bootstrap exception to clang22 N−1: revisit once the first supported Linux clang22
 release is available. No Linux arm64 variant or distro package is shipped.
+
+### LLVM development libraries (`llvm22-dev`)
+
+Every release also ships `llvm22-dev-<version>-darwin-arm64.tar.gz` and
+`llvm22-dev-<version>-darwin-x86_64.tar.gz`, both listed in its `SHA256SUMS`: the LLVM, clang and
+lld static libraries, headers, cmake modules and `llvm-config` out of the same build, packed by
+`build/package-llvm-dev.sh` (the arm64 one also carries the x86_64/10.9 `libc++.a` and its
+headers). They are for products that link LLVM statically, not for compiling with clang22; the
+Zig-for-Mavericks product downloads them from the clang22 release it pins and verifies them
+against that release's `SHA256SUMS`. They are not a pkg and have no updater feed.

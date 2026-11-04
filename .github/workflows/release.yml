@@ -136,6 +136,12 @@ jobs:
           [ -x "$MAVERICKS_WORK/stage$CROSS_PREFIX/bin/clang" ] \
             || { echo "::error::cross build produced no staged clang"; exit 1; }
 
+      - name: Package the LLVM libraries for toolchain builders (arm64)
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          sh build/package-llvm-dev.sh "$MAVERICKS_WORK/stage$CROSS_PREFIX" arm64 "$PWD/dist"
+
       - name: Export validated Mavericks target files
         run: |
           set -eu
@@ -218,6 +224,7 @@ jobs:
           path: |
             dist/*cross*.pkg
             dist/build-info-cross.txt
+            dist/llvm22-dev-*-darwin-arm64.tar.gz
 
       # libcxx22: libc++ relinked from the runtimes archive above, beside a libc++abi.1 that re-exports
       # the system's (build/build-libcxx.sh), shipped beside clang22. It
@@ -380,6 +387,12 @@ jobs:
           [ -x "$MAVERICKS_WORK/stage-native$NATIVE_PREFIX/bin/clang" ] \
             || { echo "::error::native build produced no staged clang"; exit 1; }
 
+      - name: Package the LLVM libraries for toolchain builders (x86_64)
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          sh build/package-llvm-dev.sh "$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" x86_64 "$PWD/dist"
+
       # Relocatability + the compat guard on the native HOST binaries -- the check the cross variant
       # cannot run, its host tools being arm64 by design. The Rosetta step inside is non-gating for
       # availability, but a compile that fails once Rosetta demonstrably works is a real defect.
@@ -458,6 +471,7 @@ jobs:
           path: |
             dist/*native*.pkg
             dist/build-info-native.txt
+            dist/llvm22-dev-*-darwin-x86_64.tar.gz
 
       - name: The build must not have written into the source tree
         run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh"
@@ -663,6 +677,8 @@ jobs:
             dist/build-info-*.txt
             dist/clang22*.xml
             dist/libcxx22*.xml
+            dist/llvm22-dev-*-darwin-arm64.tar.gz
+            dist/llvm22-dev-*-darwin-x86_64.tar.gz
             dist/clang22-*-linux-x86_64.tar.gz
             dist/clang22-*-linux-x86_64.manifest.json
 

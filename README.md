@@ -47,3 +47,10 @@ In a new terminal:
 clang++-22 -o hello hello.cpp
 scp hello your-mavericks-system:
 ```
+
+## For toolchain builders
+
+If you build a compiler or language toolchain that links LLVM statically, each release also
+attaches `llvm22-dev-<version>-darwin-arm64.tar.gz` and `llvm22-dev-<version>-darwin-x86_64.tar.gz`:
+this release's LLVM, clang and lld static libraries, headers, cmake modules and `llvm-config`.
+Verify them against the release's `SHA256SUMS`.
