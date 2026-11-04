@@ -8,13 +8,14 @@
 #          (build-cross.sh's stage, which also carries the x86_64/10.9 libc++.a and its headers).
 #          The archive is byte-reproducible: sorted entries, uid/gid 0, every mtime
 #          $SOURCE_DATE_EPOCH (shipyard's source-date-epoch.sh). It is written by python3's
-#          tarfile because bsdtar and GNU tar spell owner and mtime overrides differently.
+#          tarfile because bsdtar and GNU tar spell owner and mtime overrides differently, so it
+#          runs only in CI, where python3 is available. It refuses a stage missing any library
+#          group, cmake module or include directory.
 set -eu
 [ $# -eq 3 ] || { echo 'usage: package-llvm-dev.sh STAGE_PREFIX ARCH OUTDIR' >&2; exit 2; }
 STAGE="$1"; ARCH="$2"; OUT="$3"
 case "$ARCH" in
-  x86_64) TARGETS="X86" ;;
-  arm64) TARGETS="X86;AArch64" ;;
+  x86_64|arm64) : ;;
   *) echo "package-llvm-dev: unknown ARCH '$ARCH' (x86_64 or arm64)" >&2; exit 2 ;;
 esac
 [ -d "$STAGE/lib" ] || { echo "package-llvm-dev: no lib/ under $STAGE -- run the build first" >&2; exit 1; }
@@ -26,19 +27,33 @@ NAME="llvm22-dev-$PKG_VERSION-darwin-$ARCH"
 
 W="$(mktemp -d "${TMPDIR:-/tmp}/llvm-dev.XXXXXX")"; trap 'rm -rf "$W"' EXIT
 D="$W/llvm22-dev"; mkdir -p "$D/lib" "$D/include" "$D/bin"
+missing=""
+nllvm=0; nclang=0; nlld=0
 for f in "$STAGE"/lib/libLLVM*.a "$STAGE"/lib/libclang*.a "$STAGE"/lib/liblld*.a; do
   case "$f" in */libclang_rt*) continue ;; esac
-  [ -f "$f" ] && cp -P "$f" "$D/lib/"
+  [ -f "$f" ] || continue
+  case "$f" in
+    */libLLVM*) nllvm=$((nllvm + 1)) ;;
+    */libclang*) nclang=$((nclang + 1)) ;;
+    */liblld*) nlld=$((nlld + 1)) ;;
+  esac
+  cp -P "$f" "$D/lib/"
 done
+[ "$nllvm" -gt 0 ] || missing="$missing lib/libLLVM*.a"
+[ "$nclang" -gt 0 ] || missing="$missing lib/libclang*.a"
+[ "$nlld" -gt 0 ] || missing="$missing lib/liblld*.a"
 mkdir -p "$D/lib/cmake"
 for m in llvm clang lld; do
-  [ -d "$STAGE/lib/cmake/$m" ] && cp -RP "$STAGE/lib/cmake/$m" "$D/lib/cmake/"
+  if [ -d "$STAGE/lib/cmake/$m" ]; then cp -RP "$STAGE/lib/cmake/$m" "$D/lib/cmake/"; else missing="$missing lib/cmake/$m"; fi
 done
 for h in llvm llvm-c clang clang-c lld; do
-  [ -d "$STAGE/include/$h" ] && cp -RP "$STAGE/include/$h" "$D/include/"
+  if [ -d "$STAGE/include/$h" ]; then cp -RP "$STAGE/include/$h" "$D/include/"; else missing="$missing include/$h"; fi
 done
-[ -f "$STAGE/bin/llvm-config" ] || { echo "package-llvm-dev: no bin/llvm-config in $STAGE" >&2; exit 1; }
+[ -f "$STAGE/bin/llvm-config" ] || missing="$missing bin/llvm-config"
+[ -z "$missing" ] || { echo "package-llvm-dev: $STAGE is incomplete, missing:$missing" >&2; exit 1; }
 cp -P "$STAGE/bin/llvm-config" "$D/bin/"
+TARGETS="$(sed -n 's/^set(LLVM_TARGETS_TO_BUILD \(.*\))[[:space:]]*$/\1/p' "$STAGE/lib/cmake/llvm/LLVMConfig.cmake" | head -1)"
+[ -n "$TARGETS" ] || { echo "package-llvm-dev: no set(LLVM_TARGETS_TO_BUILD ...) in $STAGE/lib/cmake/llvm/LLVMConfig.cmake" >&2; exit 1; }
 
 if [ "$ARCH" = arm64 ]; then
   RT="$(find "$STAGE/lib" -name 'libc++.a' -print | LC_ALL=C sort | head -1)"

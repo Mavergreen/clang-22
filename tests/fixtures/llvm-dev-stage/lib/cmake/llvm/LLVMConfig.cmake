@@ -1,1 +1,1 @@
-fixture lib/cmake/llvm/LLVMConfig.cmake
+set(LLVM_TARGETS_TO_BUILD AArch64;X86)

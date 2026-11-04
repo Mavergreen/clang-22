@@ -64,7 +64,7 @@ for absent in bin/clang bin/ld64.lld lib/libclang_rt.osx.a lib/libLLVM.dylib; do
 done
 if grep -q 'libclang_rt' "$T/arm64.list"; then fail "compiler-rt leaked in"; fi
 tar -xzOf "$TB" llvm22-dev/BUILD-INFO > "$T/info"
-[ "$(cat "$T/info")" = "llvm=$LLVMV clang22=$FULL targets=X86;AArch64 arch=arm64" ] || fail "BUILD-INFO: $(cat "$T/info")"
+[ "$(cat "$T/info")" = "llvm=$LLVMV clang22=$FULL targets=AArch64;X86 arch=arm64" ] || fail "BUILD-INFO: $(cat "$T/info")"
 tar -xzOf "$TB" llvm22-dev/lib/x86_64-apple-darwin/libc++.a | grep -q 'x86_64-apple-macos10.9/libc++.a' || fail "libc++.a not taken from the discovered runtime dir"
 
 sh "$PKG" "$FIX" arm64 "$T/b" >/dev/null
@@ -76,9 +76,21 @@ TX="$T/x/llvm22-dev-$FULL-darwin-x86_64.tar.gz"
 tar -tzf "$TX" > "$T/x.list"
 if grep -q 'c++' "$T/x.list"; then fail "x86_64 tarball must carry no libc++"; fi
 grep -q '^llvm22-dev/bin/llvm-config$' "$T/x.list" || fail "x86_64 tarball lacks llvm-config"
-tar -xzOf "$TX" llvm22-dev/BUILD-INFO | grep -qx "llvm=$LLVMV clang22=$FULL targets=X86 arch=x86_64" || fail "x86_64 BUILD-INFO"
+tar -xzOf "$TX" llvm22-dev/BUILD-INFO | grep -qx "llvm=$LLVMV clang22=$FULL targets=AArch64;X86 arch=x86_64" || fail "x86_64 BUILD-INFO"
 
 rc=0; sh "$PKG" "$FIX" ppc "$T/p" >/dev/null 2>&1 || rc=$?
 [ "$rc" = 2 ] || fail "unknown arch exited $rc, wanted 2"
+
+# missing_lib_group_fails / missing_cmake_dir_fails / targets_from_llvmconfig
+for case_ in "lib/libLLVMCore.a lib/libLLVMSupport.a:libLLVM" "lib/libclangBasic.a lib/libclangFrontend.a:libclang*" "lib/liblldCommon.a:liblld" "lib/cmake/clang:cmake/clang" "include/lld:include/lld"; do
+  rm -rf "$T/inc"; cp -R "$FIX" "$T/inc"
+  for g in ${case_%%:*}; do rm -rf "$T/inc/$g"; done
+  rc=0; sh "$PKG" "$T/inc" arm64 "$T/i" >"$T/i.out" 2>&1 || rc=$?
+  [ "$rc" = 1 ] || fail "incomplete stage (${case_%%:*}) exited $rc, wanted 1"
+  grep -q "${case_%%:*}" "$T/i.out" 2>/dev/null || grep -q "missing" "$T/i.out" || fail "no diagnosis for ${case_%%:*}"
+done
+rm -rf "$T/inc"; cp -R "$FIX" "$T/inc"; sed '/LLVM_TARGETS_TO_BUILD/d' "$FIX/lib/cmake/llvm/LLVMConfig.cmake" > "$T/inc/lib/cmake/llvm/LLVMConfig.cmake"
+rc=0; sh "$PKG" "$T/inc" arm64 "$T/i" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 1 ] || fail "stage without LLVM_TARGETS_TO_BUILD exited $rc, wanted 1"
 
 echo "PASS llvm-dev-tarball-test"
