@@ -4,8 +4,12 @@ Clang/LLVM toolchain for Mac OS X 10.9 Mavericks.
 
 ## Compiling
 
-Both packages need the Mac OS X 10.9 SDK from [Longboat](https://github.com/Mavergreen/longboat)
-first, and refuse to install without it: install Longboat, then its `sdk install 10.9`.
+Install [Longboat](https://github.com/Mavergreen/longboat),
+then fetch the 10.9 SDK:
+
+```sh
+sudo longboat sdk install 10.9
+```
 
 ### Directly on Mavericks
 
@@ -23,7 +27,6 @@ clang++-22 -o hello hello.cpp
 ### From Apple Silicon
 
 ```sh
-sudo longboat sdk install 10.9
 sudo installer -pkg mavericks-clang-22-cross-<version>.pkg -target /
 ```
 
@@ -38,7 +41,6 @@ scp hello your-mavericks-system:
 
 ```sh
 sudo tar -C /opt/mavergreen -zxpf clang22-<version>-linux-x86_64.tar.gz
-sudo longboat sdk install 10.9
 ```
 
 In a new terminal:
@@ -47,10 +49,3 @@ In a new terminal:
 clang++-22 -o hello hello.cpp
 scp hello your-mavericks-system:
 ```
-
-## For toolchain builders
-
-If you build a compiler or language toolchain that links LLVM statically, each release also
-attaches `llvm22-dev-<version>-darwin-arm64.tar.gz` and `llvm22-dev-<version>-darwin-x86_64.tar.gz`:
-this release's LLVM, clang and lld static libraries, headers, cmake modules and `llvm-config`.
-Verify them against the release's `SHA256SUMS`.
