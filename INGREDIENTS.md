@@ -200,7 +200,8 @@ remains separately fetched. Host bootstrap inputs are locked in `build/linux/bas
 and `build/linux/packages.lock` (Ubuntu 22.04, GCC 12.3), installed from Ubuntu's snapshot archive at
 the timestamp in `build/linux/apt-snapshot`: the live archive's index drops a locked version on its
 next update, so a lock against it broke on each security update. Moving the snapshot is a deliberate
-bump, with `packages.lock` regenerated from the container it builds. This is an explicit initial
+bump, with `packages.lock` regenerated from the container it builds. The snapshot archive serves only
+https, so apt verifies it against `build/linux/isrg-root-x1.pem`, the one root its chain ends at. This is an explicit initial
 Linux bootstrap exception to clang22 N−1: revisit once the first supported Linux clang22
 release is available. No Linux arm64 variant or distro package is shipped.
 
