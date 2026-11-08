@@ -30,7 +30,13 @@ TOOLS='clang lld llvm-ar llvm-ranlib llvm-lipo llvm-otool llvm-nm llvm-strings l
 # platform: upstream install targets bring executable aliases and clang resource headers too
 set --
 for tool in $TOOLS; do set -- "$@" "install-$tool"; done
+# platform: libclang and its clang-c headers ship as the Mac pkgs ship them; shipyard's
+#           objc-source-inventory builds against them on Linux (tests/libclang-test.sh)
+set -- "$@" install-libclang install-libclang-headers
 cmake --build "$BLD" --parallel "$jobs" --target "$@"
+for file in lib/libclang.so include/clang-c/Index.h; do
+  [ -e "$PREFIX/$file" ] || { echo "build-linux: missing installed $file" >&2; exit 1; }
+done
 for tool in clang clang++ ld64.lld llvm-ar llvm-ranlib llvm-lipo llvm-otool llvm-nm llvm-strings llvm-strip llvm-install-name-tool llvm-objdump llvm-readobj llvm-profdata llvm-cov; do
   [ -x "$PREFIX/bin/$tool" ] || { echo "build-linux: missing installed $tool" >&2; exit 1; }
 done

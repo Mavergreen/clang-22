@@ -196,7 +196,9 @@ Machine-read by `artifact-facts.sh` as `- <check>:<glob> : <reason>` (one line e
 
 The Linux x86_64 tarball serves developers producing Mavericks artifacts on Linux.
 It shares this release's LLVM source, patches, Recaulk and target-file export; the SDK
-remains separately fetched. Host bootstrap inputs are locked in `build/linux/base-image`
+remains separately fetched. It ships clang, lld, the LLVM tools `build/build-linux.sh` names,
+libclang and its `clang-c` headers; the rest of what the Mac pkgs ship is not there yet (queued: one
+component set on every host). Host bootstrap inputs are locked in `build/linux/base-image`
 and `build/linux/packages.lock` (Ubuntu 22.04, GCC 12.3), installed from Ubuntu's snapshot archive at
 the timestamp in `build/linux/apt-snapshot`: the live archive's index drops a locked version on its
 next update, so a lock against it broke on each security update. Moving the snapshot is a deliberate
