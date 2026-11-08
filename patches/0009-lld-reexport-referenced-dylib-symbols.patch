@@ -1,0 +1,32 @@
+From Aqua WebKit (github.com/Wowfunhappy/WebKit, branch mavericks-backport,
+AquaWebKitSupport/toolchain/patches/lld-reexport-referenced-dylib-symbols.patch, commit 11833bcc),
+rebased onto 22.1.8; not yet upstream (main as of 2026-11-07 is unchanged). ld64.lld re-exports
+only the dylib symbols the link references, as ld64 does.
+
+Why: ld64.lld re-exports every dylib symbol that matches an -exported_symbols_list pattern, whether
+or not the link references it. FFmpeg links each library with the pattern _av*: libavformat resolves
+the libavutil symbols it uses through libavcodec's re-exports, yet still re-exported three libavutil
+symbols nothing referenced. -dead_strip_dylibs (clang.cfg) then dropped libavformat's libavutil load
+command, and those export-trie entries kept library ordinal 0, which names no dylib; dyldinfo
+-export crashed reading them. ld64 makes a pattern-matched proxy atom global only when the link
+resolved it, and literal -exported_symbol names stay re-exported here too: the driver adds them as
+undefined symbols before resolution, which references them.
+
+tests/reexport-referenced-test.sh is the regression test. To offer upstream with patches/0002.
+
+diff --git a/lld/MachO/Driver.cpp b/lld/MachO/Driver.cpp
+--- a/lld/MachO/Driver.cpp
++++ b/lld/MachO/Driver.cpp
+@@ -1662,7 +1662,11 @@
+           defined->privateExtern = true;
+         }
+       } else if (auto *dysym = dyn_cast<DylibSymbol>(sym)) {
+-        dysym->shouldReexport = config->exportedSymbols.match(sym->getName());
++        // Re-export a dylib symbol only when the link references it, as ld64
++        // does: an unreferenced one can come from a dylib -dead_strip_dylibs
++        // then drops, leaving an export-trie entry with no library ordinal.
++        dysym->shouldReexport = dysym->isReferenced() &&
++                                config->exportedSymbols.match(sym->getName());
+       }
+     });
+     if (warningsCount > kMaxWarnings)

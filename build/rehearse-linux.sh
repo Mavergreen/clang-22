@@ -15,6 +15,7 @@ export NM LIPO OTOOL STRINGS
 sh "$HERE/../tests/smoke-target.sh"
 sh "$HERE/../tests/tbd-arch-test.sh"
 sh "$HERE/../tests/libclang-test.sh"
+sh "$HERE/../tests/reexport-referenced-test.sh"
 TEST_PHASE=build; TEST_OUT="$WORK/witnesses"; LIBCXX_LIB=$2
 export TEST_PHASE TEST_OUT LIBCXX_LIB
 for test in catch-align weak-bind-order cxxabi-interop profile-runtime; do
