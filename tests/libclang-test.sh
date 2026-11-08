@@ -6,7 +6,8 @@
 # errors, every message send must resolve a receiver type, and the library must be this clang.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
-: "${TC:?TC names the compiler prefix}"
+# SKIP (77) until a toolchain is staged; rehearse-linux.sh sets TC, and a skip fails it there.
+[ -n "${TC:-}" ] && [ -x "$TC/bin/clang" ] || { echo "not built -- skipping"; exit 77; }
 fail() { echo "FAIL: libclang: $*" >&2; exit 1; }
 case "$(uname -s)" in
   Linux) lib=libclang.so; cc=${HOST_CC:-gcc-12} ;;
