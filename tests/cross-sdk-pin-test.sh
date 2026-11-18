@@ -95,7 +95,9 @@ for line in \
   'for f in "$STAGE"/bin/* "$STAGE"/lib/*.a "$STAGE"/lib/*.dylib; do' \
   '  case "${f##*/}" in libc++*|libunwind*|librecaulk.a) continue ;; esac' \
   'MAVERICKS_ALLOW_ARCHS=arm64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$@"' \
-  'MAVERICKS_ALLOW_ARCHS='\''x86_64 arm64'\'' sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$STAGE"/lib/clang/*/lib/darwin/*.a'
+  'for a in "$STAGE"/lib/clang/*/lib/darwin/*.a; do' \
+  '  case "${a##*/}" in libclang_rt.cc_kext.a) archs=x86_64 ;; *) archs='\''x86_64 arm64'\'' ;; esac' \
+  '  MAVERICKS_ALLOW_ARCHS="$archs" sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$a"'
 do
   grep -qxF -- "$line" "$B" || { echo "FAIL: build/build-cross.sh's compat guard lost: $line"; exit 1; }
 done

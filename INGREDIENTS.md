@@ -42,7 +42,9 @@ commands that outgrow the header pad, as Apple's install_name_tool does, instead
 `__text` and exiting 0 (ours), and
 `0009-lld-reexport-referenced-dylib-symbols.patch`, so ld64.lld re-exports only the dylib symbols a
 link references, as ld64 does, and `-dead_strip_dylibs` cannot leave export-trie entries naming no
-dylib (Aqua WebKit's, to offer upstream with 0002). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
+dylib (Aqua WebKit's), and
+`0010-clang-cc1as-target-sdk-version.patch`, so an assembled object records the SDK version the driver
+passes, as a compiled one does, and arm64 objects assembled from `.S` meet the 11.3 SDK pin (ours). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
 links can take new install names and rpaths afterwards. They apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
 build by name; drop a patch once the new version carries its commit. A change here is a deliberate
 repackage.

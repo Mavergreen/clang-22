@@ -387,7 +387,11 @@ for f in "$STAGE"/bin/* "$STAGE"/lib/*.a "$STAGE"/lib/*.dylib; do
 done
 [ "$#" -gt 0 ] || { echo "FATAL: no host Mach-O found under $STAGE" >&2; exit 1; }
 MAVERICKS_ALLOW_ARCHS=arm64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$@"
-MAVERICKS_ALLOW_ARCHS='x86_64 arm64' sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$STAGE"/lib/clang/*/lib/darwin/*.a
+# libclang_rt.cc_kext.a links only into kexts, which are x86_64 (sdk-pins.sh), so it gets no arm64 slice.
+for a in "$STAGE"/lib/clang/*/lib/darwin/*.a; do
+  case "${a##*/}" in libclang_rt.cc_kext.a) archs=x86_64 ;; *) archs='x86_64 arm64' ;; esac
+  MAVERICKS_ALLOW_ARCHS="$archs" sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$a"
+done
 
 # The C++ runtime archive is linked into every C++ program too, so they are held to the same arch
 # and pins -- but not through assert_binary_compatible.sh, whose import check reads every archive

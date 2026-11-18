@@ -1,0 +1,48 @@
+Ours, against 22.1.8; upstream main's cc1as_main.cpp still passes an empty SDK version. The
+integrated assembler records the SDK version the driver passes it, as the compiler does.
+
+Why: the driver passes -target-sdk-version=<the -isysroot SDK's SDKSettings.json Version> to cc1as as
+it does to cc1, but cc1as never read it and gave MCStreamer::emitVersionForTarget an empty
+VersionTuple, so every object assembled from a .s or .S file recorded "sdk n/a" where a C file
+compiled the same way recorded the SDK. The family's arm64 SDK pin requires every slice, and every
+archive member, to record sdk 11.3, so compiler-rt's arm64 builtins (its outlined-atomics members are
+assembled from lse.S) failed the compat guard.
+
+tests/asm-sdk-version-test.sh is the regression test.
+
+--- a/clang/tools/driver/cc1as_main.cpp
++++ b/clang/tools/driver/cc1as_main.cpp
+@@ -184,6 +184,9 @@
+   /// otherwise.
+   std::string TargetABI;
+ 
++  /// The version of the SDK which was used during the compilation.
++  llvm::VersionTuple SDKVersion;
++
+   /// Darwin target variant triple, the variant of the deployment target
+   /// for which the code is being compiled.
+   std::optional<llvm::Triple> DarwinTargetVariantTriple;
+@@ -271,6 +274,14 @@
+   Opts.setTriple(Args.getLastArgValue(OPT_triple));
+   if (Arg *A = Args.getLastArg(options::OPT_darwin_target_variant_triple))
+     Opts.DarwinTargetVariantTriple = llvm::Triple(A->getValue());
++  if (Arg *A = Args.getLastArg(OPT_target_sdk_version_EQ)) {
++    VersionTuple Version;
++    if (Version.tryParse(A->getValue()))
++      Diags.Report(diag::err_drv_invalid_value)
++          << A->getAsString(Args) << A->getValue();
++    else
++      Opts.SDKVersion = Version;
++  }
+   if (Arg *A = Args.getLastArg(OPT_darwin_target_variant_sdk_version_EQ)) {
+     VersionTuple Version;
+     if (Version.tryParse(A->getValue()))
+@@ -598,7 +609,7 @@
+       Triple *TVT = Opts.DarwinTargetVariantTriple
+                         ? &*Opts.DarwinTargetVariantTriple
+                         : nullptr;
+-      Str->emitVersionForTarget(T, VersionTuple(), TVT,
++      Str->emitVersionForTarget(T, Opts.SDKVersion, TVT,
+                                 Opts.DarwinTargetVariantSDKVersion);
+     }
+   }
