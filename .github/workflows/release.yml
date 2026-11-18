@@ -190,6 +190,10 @@ jobs:
       - name: A program that brings its own static libc++abi links
         run: sh tests/own-cxxabi-link-test.sh
 
+      # The builtins and librecaulk.a carry arm64 slices, so an arm64 link is clean (shipyard QUEUE #115).
+      - name: An arm64 program links with no wrong-arch archive
+        run: sh tests/arm64-link-test.sh
+
       # What the toolchain links can be relocated, and llvm-install-name-tool refuses what won't fit (patches/0008).
       - name: Linked dylibs take new rpaths, and overflowing the header pad is refused
         run: sh tests/headerpad-test.sh

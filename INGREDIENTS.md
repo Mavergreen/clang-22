@@ -139,7 +139,10 @@ exception object").
 
 Both target `x86_64-apple-macos10.9`, and both are built on the modern arm64 runner in one run — the
 native variant is cross-*hosted* using the cross variant as its compiler, so nothing x86_64 is ever
-executed during the build. Their `build-info-*.txt` records must agree on `llvm` and `recaulk`
+executed during the build. The archives every link names also carry an arm64 slice, so a project can
+link `arm64-apple-macos11.0` with its own 11.x SDK (`tests/arm64-link-test.sh`): the compiler-rt builtins
+and profile runtime are built a second time for arm64 against the pinned 11.3 SDK, and `librecaulk.a`'s
+arm64 slice is a stub, as 11.0 needs no back-fill. `libc++.a` stays x86_64 only. Their `build-info-*.txt` records must agree on `llvm` and `recaulk`
 (conformance compares any key appearing in more than one variant); `variant`, `arch`, `prefix`, `pkg`
 and `identifier` are the keys that are supposed to differ.
 

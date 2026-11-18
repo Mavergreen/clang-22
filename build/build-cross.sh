@@ -189,9 +189,56 @@ echo "==> 4. build + install into staging"
 ninja -C "$BLD" -j "$JOBS"
 rm -rf "$WORK/stage"; DESTDIR="$WORK/stage" ninja -C "$BLD" install
 
+# ARM64 SLICES OF THE ARCHIVES EVERY LINK NAMES (shipyard QUEUE #115). The toolchain targets AArch64 too,
+# and a project may link arm64-apple-macos11.0 with it (-arch arm64, its own 11.x SDK). Every such link
+# gets the builtins and, through the cfgs, librecaulk.a; x86_64-only archives made each link warn, and
+# @available (___isPlatformVersionAtLeast) and outlined atomics failed to link. The 10.9 SDK has no arm
+# headers, so the arm64 builtins and profile runtime are their own compiler-rt build against the pinned
+# 11.3 SDK, compiled by the clang just staged (no cfg exists yet, so none applies), and lipo'd into the
+# x86_64 archives. The patched DARWIN_osx_BUILTIN_MIN_VER (10.9) reaches arm64 as 11.0, the minimum
+# LLVM writes for arm64 macOS; the compat guard (step 6) checks each slice's pin.
+echo "==> 4b. arm64 compiler-rt (builtins + profile) against the 11.3 SDK"
+RT64="$WORK/compiler-rt-arm64"; rm -rf "$RT64"
+shipyard-cmake -G Ninja -S "$SRC/runtimes" -B "$RT64/build" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$RT64/install" \
+  -DCMAKE_C_COMPILER="$STAGE/bin/clang" -DCMAKE_CXX_COMPILER="$STAGE/bin/clang++" \
+  -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET="$HOST_MACOS_MIN" \
+  -DCMAKE_OSX_SYSROOT="$HOST_SDK" \
+  -DLLVM_ENABLE_RUNTIMES=compiler-rt \
+  -DLLVM_INCLUDE_TESTS=OFF -DCOMPILER_RT_INCLUDE_TESTS=OFF \
+  "-DCMAKE_IGNORE_PREFIX_PATH=/opt/pkg;/opt/homebrew;/usr/local;/opt/local;/sw" \
+  -DDARWIN_macosx_CACHED_SYSROOT="$HOST_SDK" \
+  -DDARWIN_osx_ARCHS=arm64 -DDARWIN_osx_BUILTIN_ARCHS=arm64 \
+  -DCOMPILER_RT_ENABLE_IOS=OFF -DCOMPILER_RT_ENABLE_WATCHOS=OFF -DCOMPILER_RT_ENABLE_TVOS=OFF \
+  -DCOMPILER_RT_ENABLE_XROS=OFF -DCOMPILER_RT_ENABLE_MACCATALYST=OFF \
+  -DCOMPILER_RT_BUILD_BUILTINS=ON -DCOMPILER_RT_BUILD_PROFILE=ON \
+  -DCOMPILER_RT_BUILD_SANITIZERS=OFF -DCOMPILER_RT_BUILD_XRAY=OFF -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
+  -DCOMPILER_RT_BUILD_MEMPROF=OFF -DCOMPILER_RT_BUILD_ORC=OFF -DCOMPILER_RT_BUILD_CTX_PROFILE=OFF \
+  -DCOMPILER_RT_BUILD_GWP_ASAN=OFF
+ninja -C "$RT64/build" -j "$JOBS" install
+for a in libclang_rt.osx.a libclang_rt.profile_osx.a; do
+  x86="$(find "$STAGE/lib/clang" -path '*/lib/darwin/'"$a")"
+  arm="$(find "$RT64/install" -name "$a")"
+  [ -f "$x86" ] && [ -f "$arm" ] || { echo "FATAL: $a: x86_64 '$x86', arm64 '$arm'" >&2; exit 1; }
+  lipo -create "$x86" "$arm" -output "$RT64/$a"
+  mv "$RT64/$a" "$x86"
+  echo "    $a: $(lipo -archs "$x86")"
+done
+
 echo "==> 5. assemble: Recaulk + clang.cfg (default target = x86_64 Mavericks)"
 install -d "$STAGE/lib" "$STAGE/include" "$STAGE/libexec" "$STAGE/SDKs"
-cp "$RECAULK_A" "$STAGE/lib/"
+# librecaulk.a gains an arm64 stub slice, so the cfgs' tail argument holds for an arm64 link (step 4b).
+# arm64 targets 11.0, which has everything Recaulk back-fills, so the slice defines one hidden symbol
+# nothing references and no arm64 link loads a member. -Xarch_x86_64 cannot scope the cfg line instead:
+# clang drops it from a cfg tail, and on a command line it moves the archive ahead of the program's inputs.
+printf '%s\n' '__attribute__((visibility("hidden"))) const char mavergreen_recaulk_arm64_stub = 0;' \
+  > "$RT64/recaulk-arm64-stub.c"
+"$STAGE/bin/clang" -arch arm64 -mmacosx-version-min="$HOST_MACOS_MIN" -isysroot "$HOST_SDK" \
+  -c "$RT64/recaulk-arm64-stub.c" -o "$RT64/recaulk-arm64-stub.o"
+rm -f "$RT64/librecaulk-arm64.a"
+"$STAGE/bin/llvm-ar" rcs "$RT64/librecaulk-arm64.a" "$RT64/recaulk-arm64-stub.o"
+lipo -create "$RECAULK_A" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/librecaulk.a"
 rm -rf "$STAGE/include/recaulk"; cp -R "$RECAULK_INC/recaulk" "$STAGE/include/"
 
 # Where LLVM actually put the x86_64/10.9 C++ runtime. DISCOVERED, not assumed: LLVM lays per-target
@@ -327,7 +374,8 @@ chmod +x "$STAGE/bin/portable-ld"
 echo "==> 6. compat guard: the toolchain's own Mach-O record their SDK pins"
 # The host tools -- every Mach-O in bin/ and the host libraries in lib/ -- run on arm64, so they must be
 # arm64 only and record the arm64 pin. The builtins are linked into every program this toolchain
-# emits, so they must be x86_64 only and record the x86_64 pin. Symlinks are skipped: each names a
+# emits, so they must be exactly x86_64 and arm64 (step 4b), each slice recording its arch's pin.
+# Symlinks are skipped: each names a
 # file checked here.
 # ${1+"$@"} rather than "$@" while the list may be empty: macOS's /bin/sh is bash 3.2, whose set -u
 # calls an empty "$@" unbound.
@@ -339,7 +387,7 @@ for f in "$STAGE"/bin/* "$STAGE"/lib/*.a "$STAGE"/lib/*.dylib; do
 done
 [ "$#" -gt 0 ] || { echo "FATAL: no host Mach-O found under $STAGE" >&2; exit 1; }
 MAVERICKS_ALLOW_ARCHS=arm64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$@"
-MAVERICKS_ALLOW_ARCHS=x86_64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$STAGE"/lib/clang/*/lib/darwin/*.a
+MAVERICKS_ALLOW_ARCHS='x86_64 arm64' sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$STAGE"/lib/clang/*/lib/darwin/*.a
 
 # The C++ runtime archive is linked into every C++ program too, so they are held to the same arch
 # and pins -- but not through assert_binary_compatible.sh, whose import check reads every archive

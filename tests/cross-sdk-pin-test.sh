@@ -34,6 +34,22 @@ has '"-DBUILTINS_${RUNTIME_TARGET}_DARWIN_osx_BUILTIN_ARCHS=x86_64"'
 has '"-DBUILTINS_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_IOS=OFF"'
 has '"-DBUILTINS_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_MACCATALYST=OFF"'
 
+# Their arm64 slices (shipyard QUEUE #115): a second compiler-rt build against the 11.3 SDK, lipo'd in.
+rt64="$(awk '/^shipyard-cmake -G Ninja -S "\$SRC\/runtimes" /{on=1} on{print; if ($0 !~ /\\$/) exit}' "$B")"
+[ -n "$rt64" ] || { echo "FAIL: build/build-cross.sh has no arm64 compiler-rt configure"; exit 1; }
+for flag in '-DCMAKE_OSX_ARCHITECTURES=arm64' '-DCMAKE_OSX_SYSROOT="$HOST_SDK"' \
+  '-DDARWIN_macosx_CACHED_SYSROOT="$HOST_SDK"' '-DDARWIN_osx_ARCHS=arm64 -DDARWIN_osx_BUILTIN_ARCHS=arm64' \
+  '-DCOMPILER_RT_BUILD_BUILTINS=ON -DCOMPILER_RT_BUILD_PROFILE=ON' '-DCOMPILER_RT_ENABLE_MACCATALYST=OFF'; do
+  printf '%s\n' "$rt64" | grep -qF -- "$flag" || { echo "FAIL: the arm64 compiler-rt configure lost $flag"; exit 1; }
+done
+for line in \
+  'for a in libclang_rt.osx.a libclang_rt.profile_osx.a; do' \
+  '  lipo -create "$x86" "$arm" -output "$RT64/$a"' \
+  'lipo -create "$RECAULK_A" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/librecaulk.a"'
+do
+  grep -qxF -- "$line" "$B" || { echo "FAIL: build/build-cross.sh lost an arm64 slice: $line"; exit 1; }
+done
+
 # ...and their minimum, which only a source edit can set: it must run after the unpack and before the
 # configure, on the file compiler-rt reads it from.
 order="$(awk '
@@ -74,12 +90,12 @@ if mav_pin_builtins_min_ver "$t/bad.cmake" 'ten' 2>/dev/null; then
 fi
 
 # The build-time guard over what the settings above produce: the host tools (bin/ and lib/'s host
-# libraries) arm64 only, the builtins x86_64 only, each slice recording its arch's pin.
+# libraries) arm64 only, the builtins x86_64 and arm64, each slice recording its arch's pin.
 for line in \
   'for f in "$STAGE"/bin/* "$STAGE"/lib/*.a "$STAGE"/lib/*.dylib; do' \
   '  case "${f##*/}" in libc++*|libunwind*|librecaulk.a) continue ;; esac' \
   'MAVERICKS_ALLOW_ARCHS=arm64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$@"' \
-  'MAVERICKS_ALLOW_ARCHS=x86_64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$STAGE"/lib/clang/*/lib/darwin/*.a'
+  'MAVERICKS_ALLOW_ARCHS='\''x86_64 arm64'\'' sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$STAGE"/lib/clang/*/lib/darwin/*.a'
 do
   grep -qxF -- "$line" "$B" || { echo "FAIL: build/build-cross.sh's compat guard lost: $line"; exit 1; }
 done
