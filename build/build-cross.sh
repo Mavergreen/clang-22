@@ -189,7 +189,7 @@ echo "==> 4. build + install into staging"
 ninja -C "$BLD" -j "$JOBS"
 rm -rf "$WORK/stage"; DESTDIR="$WORK/stage" ninja -C "$BLD" install
 
-# ARM64 SLICES OF THE ARCHIVES EVERY LINK NAMES (shipyard QUEUE #115). The toolchain targets AArch64 too,
+# ARM64 SLICES OF THE ARCHIVES EVERY LINK NAMES. The toolchain targets AArch64 too,
 # and a project may link arm64-apple-macos11.0 with it (-arch arm64, its own 11.x SDK). Every such link
 # gets the builtins and, through the cfgs, librecaulk.a; x86_64-only archives made each link warn, and
 # @available (___isPlatformVersionAtLeast) and outlined atomics failed to link. The 10.9 SDK has no arm

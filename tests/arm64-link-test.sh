@@ -1,7 +1,7 @@
 #!/bin/sh
 # platform: host-agnostic -- links arm64 Mach-O with the toolchain; runs nothing it links
-# SKIP (77) until a toolchain is staged. A program for arm64-apple-macos11.0 must link with no warning
-# (shipyard QUEUE #115): the cfgs add librecaulk.a and the builtins to every link, so each must carry an
+# SKIP (77) until a toolchain is staged. A program for arm64-apple-macos11.0 must link with no warning:
+# the cfgs add librecaulk.a and the builtins to every link, so each must carry an
 # arm64 slice. librecaulk.a's is a stub, as arm64 targets 11.0 and needs no back-fill; a link warned
 # "has architecture x86_64 which is incompatible" without it. The builtins' is the real compiler-rt,
 # against the 11.3 SDK; without it @available's ___isPlatformVersionAtLeast failed to link.

@@ -34,7 +34,7 @@ has '"-DBUILTINS_${RUNTIME_TARGET}_DARWIN_osx_BUILTIN_ARCHS=x86_64"'
 has '"-DBUILTINS_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_IOS=OFF"'
 has '"-DBUILTINS_${RUNTIME_TARGET}_COMPILER_RT_ENABLE_MACCATALYST=OFF"'
 
-# Their arm64 slices (shipyard QUEUE #115): a second compiler-rt build against the 11.3 SDK, lipo'd in.
+# Their arm64 slices: a second compiler-rt build against the 11.3 SDK, lipo'd in.
 rt64="$(awk '/^shipyard-cmake -G Ninja -S "\$SRC\/runtimes" /{on=1} on{print; if ($0 !~ /\\$/) exit}' "$B")"
 [ -n "$rt64" ] || { echo "FAIL: build/build-cross.sh has no arm64 compiler-rt configure"; exit 1; }
 for flag in '-DCMAKE_OSX_ARCHITECTURES=arm64' '-DCMAKE_OSX_SYSROOT="$HOST_SDK"' \
