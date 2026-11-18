@@ -29,7 +29,7 @@ EOF
 "$TC/bin/clang" -arch arm64 -mmacosx-version-min=11.0 -isysroot "$ARM64_SDK" "$t/main.c" -o "$t/main" \
   -Wl,-fatal_warnings -Wl,-t > "$t/link.log" 2>&1 \
   || { cat "$t/link.log"; fail "an arm64 program using @available does not link cleanly"; }
-archs="$("$TC/bin/llvm-lipo" -archs "$t/main")"
+archs="$("$TC/bin/llvm-lipo" -info "$t/main" | sed -n 's/.*: //p' | xargs)"
 [ "$archs" = arm64 ] || fail "linked archs '$archs', want arm64"
 grep -q 'libclang_rt\.osx\.a(os_version_check\.c\.o)' "$t/link.log" \
   || { cat "$t/link.log"; fail "___isPlatformVersionAtLeast did not come from the arm64 builtins"; }

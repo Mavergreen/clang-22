@@ -223,7 +223,7 @@ for a in libclang_rt.osx.a libclang_rt.profile_osx.a; do
   [ -f "$x86" ] && [ -f "$arm" ] || { echo "FATAL: $a: x86_64 '$x86', arm64 '$arm'" >&2; exit 1; }
   lipo -create "$x86" "$arm" -output "$RT64/$a"
   mv "$RT64/$a" "$x86"
-  echo "    $a: $(lipo -archs "$x86")"
+  echo "    $a: $(lipo -info "$x86" | sed -n 's/.*: //p')"
 done
 
 echo "==> 5. assemble: Recaulk + clang.cfg (default target = x86_64 Mavericks)"
