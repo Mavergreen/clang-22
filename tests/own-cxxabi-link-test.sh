@@ -59,7 +59,8 @@ rm -f "$t/libownabi.a"
 "$TC/bin/llvm-ar" rcs "$t/libownabi.a" "$t/cxa_exception.o" "$t/private_typeinfo.o"
 
 # The librecaulk.a members that define any of the shared names (llvm-nm -A: "<archive>:<member>: ...").
-"$TC/bin/llvm-nm" -gU -A "$TC/lib/librecaulk.a" \
+# x86_64 only: the default is the host's slice, and on an arm64 host that is the arm64 stub.
+"$TC/bin/llvm-nm" -gU -A --arch=x86_64 "$TC/lib/librecaulk.a" \
   | grep -E ' (___cxa_uncaught_exceptions|___cxa_init_primary_exception|__ZTVN10__cxxabiv1(19__pointer|29__pointer_to_member)_type_infoE)$' \
   | sed 's/^[^:]*:\([^:]*\):.*/\1/' | sort -u > "$t/shared-members"
 [ "$(wc -l < "$t/shared-members")" -ge 3 ] || fail "librecaulk.a defines too few of the shared names for this test to mean anything: $(cat "$t/shared-members")"

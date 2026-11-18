@@ -52,4 +52,16 @@ want="$(printf '%s\n' _mg_autohid _mg_pub _mg_weak)"
 $got
 want:
 $want"
+# A fat archive whose arm64 slice is a stub, as librecaulk.a's is: still the x86_64 list, whatever the
+# host's arch (nm reads only the host's slice unless told). Needs a cc that targets arm64.
+if printf 'int mg_stub;\n' | "${CC:-cc}" -arch arm64 -x c -c - -o "$T/stub.o" 2>/dev/null; then
+  ar rcs "$T/libstub.a" "$T/stub.o"
+  lipo -create "$T/libt.a" "$T/libstub.a" -output "$T/libfat.a"
+  got="$(mav_export_list "$T/libfat.a")" || fail "mav_export_list failed on a fat archive"
+  [ "$got" = "$want" ] || fail "mav_export_list on a fat archive printed:
+$got"
+  echo "ok: a fat archive lists its x86_64 slice"
+else
+  echo "note: ${CC:-cc} cannot target arm64 here; fat-archive case not run"
+fi
 echo "PASS: export list"

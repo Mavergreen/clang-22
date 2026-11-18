@@ -25,7 +25,9 @@ exports() {  # $1 Mach-O, $2 out
   "$NM" -gUj "$1" > "$2.raw" || fail "$NM -gUj $1"
   LC_ALL=C sort -u "$2.raw" > "$2"
 }
-exports "$RECAULK_A" "$T/recaulk"
+# x86_64 alone: nm reads only the host's slice of a fat archive, and librecaulk.a's arm64 slice is a stub.
+"$NM" -gUj -arch x86_64 "$RECAULK_A" > "$T/recaulk.raw" || fail "$NM -gUj -arch x86_64 $RECAULK_A"
+LC_ALL=C sort -u "$T/recaulk.raw" > "$T/recaulk"
 # An empty Recaulk set would make the "exports none of Recaulk's symbols" check below pass vacuously.
 n="$(grep -c '^_' "$T/recaulk" || true)"
 [ "$n" -gt 0 ] || fail "no defined exports read from $RECAULK_A"
