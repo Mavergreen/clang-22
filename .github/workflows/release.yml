@@ -174,6 +174,10 @@ jobs:
       - name: Assembled objects record the SDK version
         run: sh tests/asm-sdk-version-test.sh
 
+      # FileCheck ships, for lit-style checks on 10.9.
+      - name: FileCheck matches and rejects
+        run: sh tests/filecheck-test.sh
+
       # 10.9's dyld coalesces weak symbols only from name-sorted weak binding info (patches/0002).
       - name: ld64.lld writes weak bindings in name order
         run: sh tests/weak-bind-order-test.sh
@@ -431,6 +435,12 @@ jobs:
           set -eu
           REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
           TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/asm-sdk-version-test.sh
+
+      - name: Native FileCheck matches and rejects
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/filecheck-test.sh
 
       - name: Native ld64.lld writes weak bindings in name order
         run: |
@@ -766,6 +776,7 @@ jobs:
             must env TC=$I/clang22 sh tests/weak-bind-order-test.sh
             must env TC=$I/clang22 sh tests/reexport-referenced-test.sh
             must env TC=$I/clang22 sh tests/asm-sdk-version-test.sh
+            must env TC=$I/clang22 sh tests/filecheck-test.sh
             must env TC=$I/clang22 sh tests/catch-align-test.sh
             must env TC=$I/clang22 sh tests/arc-link-test.sh
             must env TC=$I/clang22 sh tests/own-cxxabi-link-test.sh

@@ -188,6 +188,9 @@ shipyard-cmake -G Ninja -S "$SRC/llvm" -B "$BLD" \
 echo "==> 4. build + install into staging"
 ninja -C "$BLD" -j "$JOBS"
 rm -rf "$WORK/stage"; DESTDIR="$WORK/stage" ninja -C "$BLD" install
+# FileCheck, alone of LLVM's test utilities, for lit-style checks on 10.9 (asked by swift). Not
+# LLVM_INSTALL_UTILS: that also installs `not` and `count`, generic names the link farm would take.
+ninja -C "$BLD" FileCheck && install -m 755 "$BLD/bin/FileCheck" "$STAGE/bin/FileCheck"
 
 # ARM64 SLICES OF THE ARCHIVES EVERY LINK NAMES. The toolchain targets AArch64 too,
 # and a project may link arm64-apple-macos11.0 with it (-arch arm64, its own 11.x SDK). Every such link

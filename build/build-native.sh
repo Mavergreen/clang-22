@@ -82,6 +82,8 @@ echo "==> 4. build + install host tools into the native staging prefix"
 ninja -C "$NATIVE_BLD" -j "$JOBS"
 rm -rf "$WORK/stage-native"; DESTDIR="$WORK/stage-native" ninja -C "$NATIVE_BLD" install
 STAGE="$WORK/stage-native$NATIVE_PREFIX"
+# FileCheck as in build-cross.sh: the one test utility, for lit-style checks on 10.9.
+ninja -C "$NATIVE_BLD" FileCheck && install -m 755 "$NATIVE_BLD/bin/FileCheck" "$STAGE/bin/FileCheck"
 [ -x "$STAGE/bin/clang" ] || { echo "FATAL: native clang not installed at $STAGE/bin/clang" >&2; exit 1; }
 
 echo "==> 5. reuse Phase-1's x86_64/10.9 runtimes + polyfill assets + cfgs (identical target triple)"

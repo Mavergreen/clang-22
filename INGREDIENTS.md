@@ -144,7 +144,9 @@ native variant is cross-*hosted* using the cross variant as its compiler, so not
 executed during the build. The archives every link names also carry an arm64 slice, so a project can
 link `arm64-apple-macos11.0` with its own 11.x SDK (`tests/arm64-link-test.sh`): the compiler-rt builtins
 and profile runtime are built a second time for arm64 against the pinned 11.3 SDK, and `librecaulk.a`'s
-arm64 slice is a stub, as 11.0 needs no back-fill. `libc++.a` stays x86_64 only. Their `build-info-*.txt` records must agree on `llvm` and `recaulk`
+arm64 slice is a stub, as 11.0 needs no back-fill. `libc++.a` stays x86_64 only. Every variant, the Linux archive too, ships LLVM's `FileCheck`, alone of
+LLVM's test utilities, for lit-style checks on 10.9 (`tests/filecheck-test.sh`); `not` and `count` stay out of
+the link farm. Their `build-info-*.txt` records must agree on `llvm` and `recaulk`
 (conformance compares any key appearing in more than one variant); `variant`, `arch`, `prefix`, `pkg`
 and `identifier` are the keys that are supposed to differ.
 
