@@ -325,6 +325,9 @@ CFG_TARGET="${TARGET_TRIPLE%"$MACOS_MIN"}"
 # Recaulk member loaded beside them to collide (tests/own-cxxabi-link-test.sh). It still precedes
 # portable-ld's -lc++abi, so the pointer catch rules still beat the system's. A link that names the
 # system's -lc++ or -lc++abi itself now gets those vtables from it, and 10.9's catch rules.
+# No system library follows it: each Recaulk member names the frameworks and libraries it needs
+# (LC_LINKER_OPTION), so a link gets them only by loading that member (tests/recaulk-autolink-test.sh).
+# A program that calls CoreFoundation, Security or the objc runtime itself names them, as with any cc.
 # -headerpad_max_install_names leaves room for install names and rpaths changed after the link, as
 # Apple's ld users expect: ld64.lld's default pad left a dylib 40 bytes, too few for one rpath.
 printf '%s\n' \
@@ -337,16 +340,13 @@ printf '%s\n' \
   '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
   '$-Wl,<CFGDIR>/../lib/librecaulk.a' \
-  '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
   > "$STAGE/bin/clang.cfg"
 # The C++ driver additionally links the toolchain's libc++ STATICALLY but GAP-FILLING, so every C++
 # executable is portable with no rpath: -nostdlib++ (don't pull the libc++ dylib) plus a portable-ld
 # wrapper that appends libc++.a and the system's libc++abi at the END of the link line. A static
 # archive supplies only what is still undefined when reached, so a normal program gets the whole STL
 # while a program bundling its own libc++ resolves that first and gets no duplicate-symbol error.
-# -dead_strip_dylibs, as in clang.cfg, drops whichever of libobjc and the three frameworks (there for
-# librecaulk's members) a program does not use, so plain C++ depends on libSystem and
-# /usr/lib/libc++abi.dylib alone, both on every macOS since 10.7.
+# Plain C++ depends on libSystem and /usr/lib/libc++abi.dylib alone, both on every macOS since 10.7.
 printf '%s\n' \
   "--target=$CFG_TARGET" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
@@ -358,7 +358,6 @@ printf '%s\n' \
   '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
   '$-Wl,<CFGDIR>/../lib/librecaulk.a' \
-  '-lobjc' '-framework CoreFoundation' '-framework Security' '-framework CoreServices' \
   '--ld-path=<CFGDIR>/portable-ld' \
   > "$STAGE/bin/clang++.cfg"
 # portable-ld: the real ld64.lld, then the x86_64 libc++ appended LAST, then the system's libc++abi it

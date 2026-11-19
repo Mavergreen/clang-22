@@ -202,6 +202,10 @@ jobs:
       - name: An arm64 program links with no wrong-arch archive
         run: sh tests/arm64-link-test.sh
 
+      # The cfgs name no system library: Recaulk's members bring their own (LC_LINKER_OPTION).
+      - name: Recaulk's members bring the libraries they need
+        run: sh tests/recaulk-autolink-test.sh
+
       # What the toolchain links can be relocated, and llvm-install-name-tool refuses what won't fit (patches/0008).
       - name: Linked dylibs take new rpaths, and overflowing the header pad is refused
         run: sh tests/headerpad-test.sh
@@ -441,6 +445,12 @@ jobs:
           set -eu
           REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
           TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/filecheck-test.sh
+
+      - name: Native Recaulk members bring the libraries they need
+        run: |
+          set -eu
+          REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/recaulk-autolink-test.sh
 
       - name: Native ld64.lld writes weak bindings in name order
         run: |
@@ -777,6 +787,7 @@ jobs:
             must env TC=$I/clang22 sh tests/reexport-referenced-test.sh
             must env TC=$I/clang22 sh tests/asm-sdk-version-test.sh
             must env TC=$I/clang22 sh tests/filecheck-test.sh
+            must env TC=$I/clang22 sh tests/recaulk-autolink-test.sh
             must env TC=$I/clang22 sh tests/catch-align-test.sh
             must env TC=$I/clang22 sh tests/arc-link-test.sh
             must env TC=$I/clang22 sh tests/own-cxxabi-link-test.sh

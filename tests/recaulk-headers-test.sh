@@ -20,7 +20,8 @@ if ! $CC_ $RC "$T/probe.c" -o "$T/probe" >/dev/null 2>"$T/probe.err"; then
   $CC_ "$T/probe.c" -o "$T/probe" >/dev/null 2>&1 || { echo "no working ${CC:-cc} for x86_64/10.9 -- skipping"; exit 77; }
   cat "$T/probe.err"; fail "an empty 10.9 C program does not build with the runtimes' flags ($RC)"
 fi
-LINK="$RECAULK_A -framework CoreFoundation -framework Security -framework CoreServices -lobjc"
+# No frameworks: each Recaulk member names what it needs (LC_LINKER_OPTION).
+LINK="$RECAULK_A"
 cat > "$T/q.c" <<'C'
 #include <stdlib.h>
 #include <pthread/qos.h>
