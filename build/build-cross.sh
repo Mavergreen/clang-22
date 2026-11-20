@@ -242,6 +242,28 @@ printf '%s\n' '__attribute__((visibility("hidden"))) const char mavergreen_recau
 rm -f "$RT64/librecaulk-arm64.a"
 "$STAGE/bin/llvm-ar" rcs "$RT64/librecaulk-arm64.a" "$RT64/recaulk-arm64-stub.o"
 lipo -create "$RECAULK_A" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/librecaulk.a"
+# librecaulk-libsystem.a: the Recaulk members that define a name 10.9's libSystem also exports
+# (pthread_get_stacksize_np, sysconf, close, posix_spawn and the rest). ld64.lld binds each name to
+# whichever of an archive and a dylib it reaches first, so with these only at the tail a link that names
+# -lSystem itself, as rustc's does, bound libSystem's: pthread_get_stacksize_np reported 512 KB for the
+# main thread of a program 10.9 gives 8 MB. The cfgs put this archive AHEAD of the program's inputs
+# (tests/recaulk-libsystem-order-test.sh). Only these members: the rest of librecaulk.a stays at the
+# tail, so a program's own definitions of the C++ ABI names still win (tests/own-cxxabi-link-test.sh),
+# and an object of the program's own that defines one of these names still wins too, as an archive
+# member loads only for a name still undefined. Derived from the pinned Recaulk and SDK, never listed by
+# hand, and refused empty: pthread_get_stacksize_np is the reason it exists.
+RS="$RT64/recaulk-libsystem"; rm -rf "$RS"; mkdir -p "$RS/members"
+"$STAGE/bin/llvm-nm" -gU --just-symbol-name "$SDK/usr/lib/libSystem.B.dylib" "$SDK"/usr/lib/system/*.dylib \
+  | grep -v -e '^$' -e ':$' | sort -u > "$RS/libsystem-names"
+"$STAGE/bin/llvm-nm" -gU -A "$RECAULK_A" | awk -F': ' '{ n = split($1, p, ":"); split($2, f, " "); print p[n], f[3] }' \
+  | awk 'NR == FNR { sys[$1] = 1; next } ($2 in sys) { print $1 }' "$RS/libsystem-names" - | sort -u > "$RS/member-list"
+grep -qx 'mp-pthread_get_stacksize_np.o' "$RS/member-list" \
+  || { echo "FATAL: no librecaulk.a member overrides libSystem's pthread_get_stacksize_np: $(tr '\n' ' ' < "$RS/member-list")" >&2; exit 1; }
+( cd "$RS/members" && xargs "$STAGE/bin/llvm-ar" x "$RECAULK_A" < "$RS/member-list" )
+rm -f "$RS/x86_64.a"
+( cd "$RS/members" && xargs "$STAGE/bin/llvm-ar" rcs "$RS/x86_64.a" < "$RS/member-list" )
+lipo -create "$RS/x86_64.a" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/librecaulk-libsystem.a"
+echo "    librecaulk-libsystem.a: $(tr '\n' ' ' < "$RS/member-list")"
 rm -rf "$STAGE/include/recaulk"; cp -R "$RECAULK_INC/recaulk" "$STAGE/include/"
 
 # Where LLVM actually put the x86_64/10.9 C++ runtime. DISCOVERED, not assumed: LLVM lays per-target
@@ -325,6 +347,8 @@ CFG_TARGET="${TARGET_TRIPLE%"$MACOS_MIN"}"
 # Recaulk member loaded beside them to collide (tests/own-cxxabi-link-test.sh). It still precedes
 # portable-ld's -lc++abi, so the pointer catch rules still beat the system's. A link that names the
 # system's -lc++ or -lc++abi itself now gets those vtables from it, and 10.9's catch rules.
+# The members that override a libSystem name are also in librecaulk-libsystem.a, which goes AHEAD of the
+# inputs (no `$`), so a link naming -lSystem itself still binds them (step 5).
 # No system library follows it: each Recaulk member names the frameworks and libraries it needs
 # (LC_LINKER_OPTION), so a link gets them only by loading that member (tests/recaulk-autolink-test.sh).
 # A program that calls CoreFoundation, Security or the objc runtime itself names them, as with any cc.
@@ -339,6 +363,7 @@ printf '%s\n' \
   '--mavergreen-own-libcxx' \
   '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
+  '-Wl,<CFGDIR>/../lib/librecaulk-libsystem.a' \
   '$-Wl,<CFGDIR>/../lib/librecaulk.a' \
   > "$STAGE/bin/clang.cfg"
 # The C++ driver additionally links the toolchain's libc++ STATICALLY but GAP-FILLING, so every C++
@@ -357,6 +382,7 @@ printf '%s\n' \
   '--mavergreen-own-libcxx' \
   '-Wl,-headerpad_max_install_names' \
   '-Wl,-U,__availability_version_check' \
+  '-Wl,<CFGDIR>/../lib/librecaulk-libsystem.a' \
   '$-Wl,<CFGDIR>/../lib/librecaulk.a' \
   '--ld-path=<CFGDIR>/portable-ld' \
   > "$STAGE/bin/clang++.cfg"
@@ -384,7 +410,7 @@ echo "==> 6. compat guard: the toolchain's own Mach-O record their SDK pins"
 set --
 for f in "$STAGE"/bin/* "$STAGE"/lib/*.a "$STAGE"/lib/*.dylib; do
   [ -f "$f" ] && [ ! -L "$f" ] || continue
-  case "${f##*/}" in libc++*|libunwind*|librecaulk.a) continue ;; esac
+  case "${f##*/}" in libc++*|libunwind*|librecaulk.a|librecaulk-libsystem.a) continue ;; esac
   if lipo -info "$f" >/dev/null 2>&1; then set -- ${1+"$@"} "$f"; fi
 done
 [ "$#" -gt 0 ] || { echo "FATAL: no host Mach-O found under $STAGE" >&2; exit 1; }
@@ -400,8 +426,8 @@ done
 # member's undefined symbols. libc++'s chrono.o imports clock_gettime (10.12+) by design, and the
 # Recaulk archive defines it in the final link; tests/smoke-target.sh proves that link on the
 # binary it builds. So these get only the per-slice rule the guard itself applies (sdk-pins.sh).
-# librecaulk.a is left out: it is the prebuilt Recaulk release, checked where it
-# is built.
+# librecaulk.a and librecaulk-libsystem.a are left out: they are the prebuilt Recaulk release and members
+# of it, checked where it is built.
 . "$SHIPYARD_SCRIPTS/sdk-pins.sh"
 for a in "$RTDIR/libc++.a"; do
   slices="$(sh "$SHIPYARD_SCRIPTS/macho-slices.sh" "$a")" || { echo "FATAL: $a is not a readable Mach-O" >&2; exit 1; }

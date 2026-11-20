@@ -20,6 +20,10 @@ n="$(grep -c -x -F "  '-isystem <CFGDIR>/../include/recaulk' \\" "$B" || true)"
 # At the tail of the link (`$`), so a program's own definitions win: tests/own-cxxabi-link-test.sh.
 n="$(grep -c -x -F "  '\$-Wl,<CFGDIR>/../lib/librecaulk.a' \\" "$B" || true)"
 [ "$n" = 2 ] || fail "$B: want 2 tail librecaulk.a cfg lines, got $n"
+# Its libSystem-overriding members AHEAD of the inputs, so -lSystem named first still binds Recaulk's:
+# tests/recaulk-libsystem-order-test.sh.
+n="$(grep -c -x -F "  '-Wl,<CFGDIR>/../lib/librecaulk-libsystem.a' \\" "$B" || true)"
+[ "$n" = 2 ] || fail "$B: want 2 head librecaulk-libsystem.a cfg lines, got $n"
 
 # 3. the libc++ build's compile and link flags
 grep '^RC=' "$B" | grep -q -F -e '-isystem $RECAULK_INC/recaulk' || fail "RC lacks -isystem \$RECAULK_INC/recaulk"

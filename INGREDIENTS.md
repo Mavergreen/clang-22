@@ -45,7 +45,11 @@ link references, as ld64 does, and `-dead_strip_dylibs` cannot leave export-trie
 dylib (Aqua WebKit's), and
 `0010-clang-cc1as-target-sdk-version.patch`, so an assembled object records the SDK version the driver
 passes, as a compiled one does, and arm64 objects assembled from `.S` meet the 11.3 SDK pin (ours). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
-links can take new install names and rpaths afterwards. They name no system library after `librecaulk.a`:
+links can take new install names and rpaths afterwards. The members of `librecaulk.a` that override a
+name 10.9's libSystem exports (`pthread_get_stacksize_np`, `sysconf`, `close`, `posix_spawn` and the rest,
+derived at build time) also go in `librecaulk-libsystem.a`, ahead of the program's inputs, so a link that
+names `-lSystem` first, as rustc's does, still binds Recaulk's; the rest stays at the tail, so a program's
+own definitions win. They name no system library after `librecaulk.a`:
 each Recaulk member (from 20261119.1) names the frameworks and libraries it needs, so a program gets
 them only by using that member, and one that calls CoreFoundation, Security or the objc runtime itself
 names them. The patches apply with no fuzz, so an `UPSTREAM_VERSION` bump that breaks one fails the
