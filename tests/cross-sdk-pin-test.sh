@@ -45,7 +45,8 @@ done
 for line in \
   'for a in libclang_rt.osx.a libclang_rt.profile_osx.a; do' \
   '  lipo -create "$x86" "$arm" -output "$RT64/$a"' \
-  'lipo -create "$RECAULK_A" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/librecaulk.a"'
+  'lipo -create "$RECAULK_A" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/librecaulk.a"' \
+  'lipo -create "$RS/x86_64.a" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/librecaulk-libsystem.a"'
 do
   grep -qxF -- "$line" "$B" || { echo "FAIL: build/build-cross.sh lost an arm64 slice: $line"; exit 1; }
 done
@@ -93,7 +94,7 @@ fi
 # libraries) arm64 only, the builtins x86_64 and arm64, each slice recording its arch's pin.
 for line in \
   'for f in "$STAGE"/bin/* "$STAGE"/lib/*.a "$STAGE"/lib/*.dylib; do' \
-  '  case "${f##*/}" in libc++*|libunwind*|librecaulk.a) continue ;; esac' \
+  '  case "${f##*/}" in libc++*|libunwind*|librecaulk.a|librecaulk-libsystem.a) continue ;; esac' \
   'MAVERICKS_ALLOW_ARCHS=arm64 sh "$SHIPYARD_SCRIPTS/assert_binary_compatible.sh" "$@"' \
   'for a in "$STAGE"/lib/clang/*/lib/darwin/*.a; do' \
   '  case "${a##*/}" in libclang_rt.cc_kext.a) archs=x86_64 ;; *) archs='\''x86_64 arm64'\'' ;; esac' \
