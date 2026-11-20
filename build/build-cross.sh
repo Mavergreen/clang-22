@@ -256,13 +256,19 @@ RS="$RT64/recaulk-libsystem"; rm -rf "$RS"; mkdir -p "$RS/members"
 "$STAGE/bin/llvm-nm" -gU --just-symbol-name "$SDK/usr/lib/libSystem.B.dylib" "$SDK"/usr/lib/system/*.dylib \
   | grep -v -e '^$' -e ':$' | sort -u > "$RS/libsystem-names"
 "$STAGE/bin/llvm-nm" -gU -A "$RECAULK_A" | awk -F': ' '{ n = split($1, p, ":"); split($2, f, " "); print p[n], f[3] }' \
-  | awk 'NR == FNR { sys[$1] = 1; next } ($2 in sys) { print $1 }' "$RS/libsystem-names" - | sort -u > "$RS/member-list"
+  | awk 'NR == FNR { sys[$1] = 1; next } ($2 in sys) { print $1, $2 }' "$RS/libsystem-names" - > "$RS/overrides"
+awk '{ print $1 }' "$RS/overrides" | sort -u > "$RS/member-list"
+awk '{ print $2 }' "$RS/overrides" | sort -u > "$RS/symbols"
 grep -qx 'mp-pthread_get_stacksize_np.o' "$RS/member-list" \
   || { echo "FATAL: no librecaulk.a member overrides libSystem's pthread_get_stacksize_np: $(tr '\n' ' ' < "$RS/member-list")" >&2; exit 1; }
 ( cd "$RS/members" && xargs "$STAGE/bin/llvm-ar" x "$RECAULK_A" < "$RS/member-list" )
 rm -f "$RS/x86_64.a"
 ( cd "$RS/members" && xargs "$STAGE/bin/llvm-ar" rcs "$RS/x86_64.a" < "$RS/member-list" )
 lipo -create "$RS/x86_64.a" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/librecaulk-libsystem.a"
+# The names those members override, one per line, for shipyard's conformance check: a product binary
+# that imports one of them from libSystem was linked without Recaulk's copy.
+install -d "$STAGE/share/recaulk"
+cp "$RS/symbols" "$STAGE/share/recaulk/libsystem-overrides.txt"
 echo "    librecaulk-libsystem.a: $(tr '\n' ' ' < "$RS/member-list")"
 rm -rf "$STAGE/include/recaulk"; cp -R "$RECAULK_INC/recaulk" "$STAGE/include/"
 
