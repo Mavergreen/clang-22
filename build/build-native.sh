@@ -134,6 +134,8 @@ done
 [ -d "$STAGE/include/c++/v1" ] || { echo "FATAL: libc++ headers missing from $STAGE/include/c++/v1" >&2; exit 1; }
 
 cp -p "$CROSS_STAGE/lib/librecaulk.a" "$CROSS_STAGE/lib/librecaulk-libsystem.a" "$STAGE/lib/"
+install -d "$STAGE/share/recaulk"
+cp -p "$CROSS_STAGE/share/recaulk/libsystem-overrides.txt" "$STAGE/share/recaulk/"
 rm -rf "$STAGE/include/recaulk"
 cp -R "$CROSS_STAGE/include/recaulk" "$STAGE/include/"
 cp -p "$CROSS_STAGE/libexec/"* "$STAGE/libexec/" 2>/dev/null || true
