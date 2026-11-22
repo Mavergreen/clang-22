@@ -251,7 +251,8 @@ lipo -create "$RECAULK_A" "$RT64/librecaulk-arm64.a" -output "$STAGE/lib/libreca
 # tail, so a program's own definitions of the C++ ABI names still win (tests/own-cxxabi-link-test.sh),
 # and an object of the program's own that defines one of these names still wins too, as an archive
 # member loads only for a name still undefined. Derived from the pinned Recaulk and SDK, never listed by
-# hand, and refused empty: pthread_get_stacksize_np is the reason it exists.
+# hand, and refused without pthread_get_stacksize_np, the reason it exists. Checked by symbol, never by
+# member name: Recaulk renamed that member (mp- to recaulk-) in 20261121.x, and a name check broke the build.
 RS="$RT64/recaulk-libsystem"; rm -rf "$RS"; mkdir -p "$RS/members"
 "$STAGE/bin/llvm-nm" -gU --just-symbol-name "$SDK/usr/lib/libSystem.B.dylib" "$SDK"/usr/lib/system/*.dylib \
   | grep -v -e '^$' -e ':$' | sort -u > "$RS/libsystem-names"
@@ -259,7 +260,7 @@ RS="$RT64/recaulk-libsystem"; rm -rf "$RS"; mkdir -p "$RS/members"
   | awk 'NR == FNR { sys[$1] = 1; next } ($2 in sys) { print $1, $2 }' "$RS/libsystem-names" - > "$RS/overrides"
 awk '{ print $1 }' "$RS/overrides" | sort -u > "$RS/member-list"
 awk '{ print $2 }' "$RS/overrides" | sort -u > "$RS/symbols"
-grep -qx 'mp-pthread_get_stacksize_np.o' "$RS/member-list" \
+grep -qx '_pthread_get_stacksize_np' "$RS/symbols" \
   || { echo "FATAL: no librecaulk.a member overrides libSystem's pthread_get_stacksize_np: $(tr '\n' ' ' < "$RS/member-list")" >&2; exit 1; }
 ( cd "$RS/members" && xargs "$STAGE/bin/llvm-ar" x "$RECAULK_A" < "$RS/member-list" )
 rm -f "$RS/x86_64.a"
