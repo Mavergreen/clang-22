@@ -405,6 +405,16 @@ printf '%s\n' '#!/bin/sh' \
   'exec "$DIR/ld64.lld" "$@" -load_hidden "$RT/libc++.a" -lc++abi' \
   > "$STAGE/bin/portable-ld"
 chmod +x "$STAGE/bin/portable-ld"
+# platform: clang's Darwin driver and Go's darwin external link ask for strip and lipo by bare name
+#           ($CC --print-prog-name=strip), finding them beside clang before PATH; without these a link
+#           falls back to the CLT's tools, or fails on a box without them. The pkgs keep both names out
+#           of the shared bin/, where they would shadow cctools' or Apple's own strip and lipo.
+ln -sf llvm-strip "$STAGE/bin/strip"
+ln -sf llvm-lipo "$STAGE/bin/lipo"
+for tool in dsymutil strip lipo; do
+  [ "$("$STAGE/bin/clang" --print-prog-name="$tool")" -ef "$STAGE/bin/$tool" ] \
+    || { echo "FATAL: clang --print-prog-name=$tool does not name $STAGE/bin/$tool" >&2; exit 1; }
+done
 
 echo "==> 6. compat guard: the toolchain's own Mach-O record their SDK pins"
 # The host tools -- every Mach-O in bin/ and the host libraries in lib/ -- run on arm64, so they must be

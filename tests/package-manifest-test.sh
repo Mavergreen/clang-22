@@ -14,7 +14,7 @@ export MAVERICKS_WORK="$W/work" DIST="$W/dist" UPD_APP=""
 . "$R/build/versions.sh"
 mk() { mkdir -p "$(dirname "$1")"; printf '#!/bin/sh\n' > "$1"; chmod 755 "$1"; }
 for t in "$WORK/stage-native$NATIVE_PREFIX" "$WORK/stage$CROSS_PREFIX"; do
-  for f in bin/clang "bin/clang-$CLANG_LINE" bin/clang++ bin/clang.cfg bin/clang++.cfg bin/portable-ld bin/llvm-ar; do mk "$t/$f"; done
+  for f in bin/clang "bin/clang-$CLANG_LINE" bin/clang++ bin/clang.cfg bin/clang++.cfg bin/portable-ld bin/llvm-ar bin/strip bin/lipo; do mk "$t/$f"; done
   mkdir -p "$t/SDKs" "$t/share/man/man1"; : > "$t/share/man/man1/scan-build.1"
 done
 sh "$R/build/package-native-pkg.sh" > "$W/native.log" 2>&1 || { cat "$W/native.log"; fail "the native archive must package from a staged tree"; }
@@ -97,7 +97,7 @@ MG select clang "$X" || fail "select must move the clang group to the cross tool
 [ "$(readlink "$F/bin/clang-$CLANG_LINE")" = "../$N/bin/clang" ] \
   || fail "select must leave clang-$CLANG_LINE on the native driver (R4 excludes the cross tree's real bin/clang-$CLANG_LINE; Task A6 refuses the takeover anyway)"
 MG check || fail "mavergreen check must stay clean after select"
-for gone in "clang.cfg-$CLANG_LINE" "portable-ld-$CLANG_LINE" "clang-$CLANG_LINE-$CLANG_LINE" "clang-$CLANG_LINE-$CLANG_LINE-cross" clang.cfg portable-ld "clang.cfg-$CLANG_LINE-cross" "portable-ld-$CLANG_LINE-cross"; do
+for gone in "clang.cfg-$CLANG_LINE" "portable-ld-$CLANG_LINE" "clang-$CLANG_LINE-$CLANG_LINE" "clang-$CLANG_LINE-$CLANG_LINE-cross" clang.cfg portable-ld "clang.cfg-$CLANG_LINE-cross" "portable-ld-$CLANG_LINE-cross" strip lipo "strip-$CLANG_LINE" "lipo-$CLANG_LINE" "strip-$CLANG_LINE-cross" "lipo-$CLANG_LINE-cross"; do
   [ ! -e "$F/bin/$gone" ] && [ ! -L "$F/bin/$gone" ] || fail "$gone must not be exported"
 done
 echo "PASS: package-manifest"

@@ -141,6 +141,12 @@ cp -R "$CROSS_STAGE/include/recaulk" "$STAGE/include/"
 cp -p "$CROSS_STAGE/libexec/"* "$STAGE/libexec/" 2>/dev/null || true
 install -d "$STAGE/SDKs"
 cp -p "$CROSS_STAGE/bin/portable-ld" "$STAGE/bin/portable-ld"; chmod +x "$STAGE/bin/portable-ld"
+# platform: clang's Darwin driver and Go's darwin external link ask for strip and lipo by bare name
+#           ($CC --print-prog-name=strip), finding them beside clang before PATH; without these a link
+#           falls back to the CLT's tools, or fails on a box without them. The pkgs keep both names out
+#           of the shared bin/, where they would shadow cctools' or Apple's own strip and lipo.
+ln -sf llvm-strip "$STAGE/bin/strip"
+ln -sf llvm-lipo "$STAGE/bin/lipo"
 # The cross clang.cfg/clang++.cfg are already <CFGDIR>-relative with default target x86_64/10.9 --
 # identical semantics for the native toolchain, where host == target. Copy verbatim.
 cp -p "$CROSS_STAGE/bin/clang.cfg" "$STAGE/bin/clang.cfg"

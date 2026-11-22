@@ -28,7 +28,7 @@ UPD_LABEL="$(sh "$SHIPYARD_SCRIPTS/product-name.sh" agent-label "clang${CLANG_LI
 scr="$STAGING_OUT/pkg-scripts-cross"; rm -rf "$scr"
 set -- --stage "$PAYLOAD" --product "clang${CLANG_LINE}-cross" --name "Clang ${CLANG_LINE} cross toolchain for Mavericks" \
   --group clang --line "${CLANG_LINE}-cross" --version "$VER" \
-  --exclude "bin/clang-${CLANG_LINE}" --exclude bin/clang.cfg --exclude bin/clang++.cfg --exclude bin/portable-ld \
+  --exclude "bin/clang-${CLANG_LINE}" --exclude bin/clang.cfg --exclude bin/clang++.cfg --exclude bin/portable-ld --exclude bin/strip --exclude bin/lipo \
   --requires sdk109 --scripts-out "$scr"
 if [ -n "$UPD_APP" ] && [ -d "$UPD_APP" ]; then
   set -- "$@" --updater-app "$UPD_APP"
