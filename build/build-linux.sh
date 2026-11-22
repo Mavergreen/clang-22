@@ -26,7 +26,7 @@ else
   jobs="$(sh "$HERE/linux-jobs.sh" "$cores" "$memory")"
 fi
 case "$jobs" in ''|*[!0-9]*|0) echo "build-linux: invalid job count '$jobs'" >&2; exit 2 ;; esac
-TOOLS='clang lld llvm-ar llvm-ranlib llvm-lipo llvm-otool llvm-nm llvm-strings llvm-strip llvm-install-name-tool llvm-objdump llvm-readobj llvm-profdata llvm-cov'
+TOOLS='clang lld llvm-ar llvm-ranlib llvm-lipo llvm-otool llvm-nm llvm-strings llvm-strip llvm-install-name-tool llvm-objdump llvm-readobj llvm-profdata llvm-cov dsymutil'
 # platform: upstream install targets bring executable aliases and clang resource headers too
 set --
 for tool in $TOOLS; do set -- "$@" "install-$tool"; done
@@ -37,10 +37,13 @@ cmake --build "$BLD" --parallel "$jobs" --target "$@"
 # platform: FileCheck has no install target without LLVM_INSTALL_UTILS; the Mac pkgs ship it the same way
 cmake --build "$BLD" --parallel "$jobs" --target FileCheck
 install -m 755 "$BLD/bin/FileCheck" "$PREFIX/bin/FileCheck"
+# platform: Go's darwin external link runs $CC --print-prog-name=strip; there is no install-strip
+#           target, and clang finds strip only beside itself, so llvm-strip is linked under that name
+ln -sf llvm-strip "$PREFIX/bin/strip"
 for file in lib/libclang.so include/clang-c/Index.h; do
   [ -e "$PREFIX/$file" ] || { echo "build-linux: missing installed $file" >&2; exit 1; }
 done
-for tool in FileCheck clang clang++ ld64.lld llvm-ar llvm-ranlib llvm-lipo llvm-otool llvm-nm llvm-strings llvm-strip llvm-install-name-tool llvm-objdump llvm-readobj llvm-profdata llvm-cov; do
+for tool in FileCheck clang clang++ ld64.lld llvm-ar llvm-ranlib llvm-lipo llvm-otool llvm-nm llvm-strings llvm-strip llvm-install-name-tool llvm-objdump llvm-readobj llvm-profdata llvm-cov dsymutil strip; do
   [ -x "$PREFIX/bin/$tool" ] || { echo "build-linux: missing installed $tool" >&2; exit 1; }
 done
 sh "$HERE/verify-linux-host.sh" "$PREFIX"
