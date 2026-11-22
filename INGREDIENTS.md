@@ -20,9 +20,9 @@ Not ingredients: `build/*.sh` and `native-bootstrap/` are this repo's own recipe
 repackage you cut deliberately (`workflow_dispatch` with `local_release=true`), not something Renovate
 drives.
 
-Patches (`patches/*.patch`, applied to the GPG-verified source by `mav_apply_patches` in
-`build/lib.sh`, which both `build/build-cross.sh` and `build/build-native.sh` call: CI's native job
-unpacks its own copy of the tarball): upstream LLVM fixes the pinned version lacks, each rebased onto
+Patches (`patches/*.patch`, applied to the GPG-verified source by shipyard's `apply_patches.sh`,
+which `build/build-cross.sh`, `build/build-native.sh` and `build/build-linux.sh` all call: CI's native
+job unpacks its own copy of the tarball): upstream LLVM fixes the pinned version lacks, each rebased onto
 it and naming its upstream commit in its header, or Mavergreen's own fix where upstream has none yet:
 `0001-arm64e-x1-tbd.patch`, so ld64.lld reads macOS 27's SDK stubs (upstream's), and
 `0002-lld-weak-bindings-by-name.patch`, so 10.9's dyld coalesces weak symbols across images (ours, to

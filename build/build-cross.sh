@@ -43,7 +43,7 @@ rm -rf "$SRC"; tar -xf "$tb" -C "$WORK"
 [ -d "$SRC/llvm" ] || { echo "FATAL: tarball did not unpack to $SRC" >&2; exit 1; }
 # patches/: upstream LLVM fixes this version lacks, each rebased onto it and naming its upstream
 # commit in its header. build-native.sh applies them too, for the tree it may unpack itself.
-mav_apply_patches "$SRC" "$REPO_ROOT/patches" || exit 1
+sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$SRC" "$REPO_ROOT/patches" || exit 1
 # The one edit besides patches/; "THE BUILTINS ARE x86_64/10.9 ONLY" in step 3 says why.
 mav_pin_builtins_min_ver "$SRC/compiler-rt/cmake/builtin-config-ix.cmake" "$MACOS_MIN" \
   || { echo "FATAL: could not pin the compiler-rt builtins' macOS minimum to $MACOS_MIN" >&2; exit 1; }

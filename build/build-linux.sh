@@ -16,7 +16,7 @@ gpg --batch --quiet --import "$HERE/../keys/llvm-release.asc"
 gpg --batch --quiet --verify "$tb.sig" "$tb"
 SRC="$WORK/llvm-project-$LLVM_VERSION.src"
 rm -rf "$SRC"; tar -xf "$tb" -C "$WORK"
-mav_apply_patches "$SRC" "$REPO_ROOT/patches"
+sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$SRC" "$REPO_ROOT/patches"
 BLD="$WORK/linux-build"; PREFIX="$WORK/linux-host"
 sh "$HERE/configure-linux.sh" "$SRC" "$BLD" "$PREFIX"
 if [ -n "${MAVERICKS_JOBS:-}" ]; then jobs=$MAVERICKS_JOBS
