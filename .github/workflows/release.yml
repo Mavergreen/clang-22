@@ -626,7 +626,7 @@ jobs:
 
   collect:
     needs: [build-cross, build-native, build-linux]
-    runs-on: macos-26   # pkgutil-based conformance needs macOS
+    runs-on: ubuntu-latest   # spec: 2026-10-24 macOS runner exit -- signing, feeds and conformance are host-agnostic (shipyard publishes the same steps from Linux)
     outputs:
       version: ${{ needs.build-cross.outputs.version }}
       publish: ${{ needs.build-cross.outputs.publish }}
