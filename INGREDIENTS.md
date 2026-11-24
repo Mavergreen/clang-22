@@ -47,7 +47,10 @@ dylib (Aqua WebKit's), and
 passes, as a compiled one does, and arm64 objects assembled from `.S` meet the 11.3 SDK pin (ours), and
 `0011-llvm-coro-frame-stable-alloca-sort.patch`, so a coroutine frame's layout depends on the IR alone,
 not on the C++ library the compiler was built against: the Linux-hosted and Mac-hosted clang22 lay out
-the same frame alike (ours, the same bytes as swift's). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
+the same frame alike (ours, the same bytes as swift's), and
+`0012-llvm-objcopy-macho-reexport-dylib.patch`, so llvm-install-name-tool edits a dylib that
+re-exports, upward-links or lazy-links another, as libcxx22's `libc++.1.dylib` re-exports
+`libc++abi.1.dylib`, instead of refusing it (ours). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
 links can take new install names and rpaths afterwards. The members of `librecaulk.a` that override a
 name 10.9's libSystem exports (`pthread_get_stacksize_np`, `sysconf`, `close`, `posix_spawn` and the rest,
 derived at build time) also go in `librecaulk-libsystem.a`, ahead of the program's inputs, so a link that

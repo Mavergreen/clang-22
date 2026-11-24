@@ -218,6 +218,10 @@ jobs:
       - name: -fmodules compiles C++ and Objective-C++ against the 10.9 SDK
         run: sh tests/cxx-modules-test.sh
 
+      # llvm-install-name-tool edits a dylib that re-exports another, as libcxx22's does (patches/0012).
+      - name: llvm-install-name-tool edits a re-exporting dylib
+        run: sh tests/install-name-reexport-test.sh
+
       # Exit 77 (cannot execute x86_64) fails this step on purpose: see the test's header.
       - name: Coverage works (profile runtime links, runs, reads back)
         run: sh tests/profile-runtime-test.sh
@@ -477,6 +481,7 @@ jobs:
           set -eu
           REPO_ROOT="$PWD"; export REPO_ROOT; . ./build/versions.sh
           TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/headerpad-test.sh
+          TC="$MAVERICKS_WORK/stage-native$NATIVE_PREFIX" sh tests/install-name-reexport-test.sh
 
       - name: Native clang links a program that brings its own static libc++abi
         run: |
@@ -808,6 +813,7 @@ jobs:
             must env TC=$I/clang22 sh tests/recaulk-libsystem-order-test.sh
             must env TC=$I/clang22 sh tests/headerpad-test.sh
             must env TC=$I/clang22 sh tests/cxx-modules-test.sh
+            must env TC=$I/clang22 sh tests/install-name-reexport-test.sh
             must env TC=$I/clang22 LIBCXX_LIB=$I/libcxx22/lib sh tests/libcxx-runtime-test.sh
             must env TC=$I/clang22 sh tests/profile-runtime-test.sh
             must env TC=$I/clang22 sh tests/tbd-arch-test.sh
