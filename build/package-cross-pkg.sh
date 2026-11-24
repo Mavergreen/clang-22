@@ -20,28 +20,29 @@ NAME="mavericks-clang-${CLANG_LINE}-cross-$VER.pkg"
 STAGING_OUT="$WORK/out"; mkdir -p "$STAGING_OUT"
 OUT="$STAGING_OUT/$NAME"
 
-rm -rf "$STAGE/SDKs"; ln -s ../sdk109/SDKs "$STAGE/SDKs"
+# Archive first: the standalone archive is the primary artifact, and the pkg's root is derived from it.
+PKGROOT="$WORK/pkgroot-cross"
+sh "$HERE/archive-then-pkg-root.sh" "$PAYLOAD" "clang${CLANG_LINE}-cross" "$VER" arm64 "$DIST" "$PKGROOT"
 
 UPD_APP="${UPD_APP:-}"
 UPD_DIR="/Library/Application Support/Mavergreen"
 UPD_LABEL="$(sh "$SHIPYARD_SCRIPTS/product-name.sh" agent-label "clang${CLANG_LINE}-cross")"
 scr="$STAGING_OUT/pkg-scripts-cross"; rm -rf "$scr"
-set -- --stage "$PAYLOAD" --product "clang${CLANG_LINE}-cross" --name "Clang ${CLANG_LINE} cross toolchain for Mavericks" \
+set -- --stage "$PKGROOT" --product "clang${CLANG_LINE}-cross" --name "Clang ${CLANG_LINE} cross toolchain for Mavericks" \
   --group clang --line "${CLANG_LINE}-cross" --version "$VER" \
-  --exclude "bin/clang-${CLANG_LINE}" --exclude bin/clang.cfg --exclude bin/clang++.cfg --exclude bin/portable-ld --exclude bin/strip --exclude bin/lipo \
+  --exclude "bin/clang-${CLANG_LINE}" --exclude bin/clang.cfg --exclude bin/clang++.cfg --exclude bin/portable-ld --exclude bin/strip --exclude bin/lipo --exclude bin/setup-sdk \
   --requires sdk109 --scripts-out "$scr"
 if [ -n "$UPD_APP" ] && [ -d "$UPD_APP" ]; then
   set -- "$@" --updater-app "$UPD_APP"
 else
   echo ">> WARNING: no updater at '$UPD_APP'; packaging the toolchain alone (build it: shipyard-cmake --build \"\$MAVERICKS_BUILD_ROOT/clang-updater-cross\" --target clang${CLANG_LINE}-cross-updater)" >&2
-  rm -rf "$PAYLOAD$UPD_DIR" "$PAYLOAD/Library/LaunchAgents/$UPD_LABEL.plist"
+  rm -rf "$PKGROOT$UPD_DIR" "$PKGROOT/Library/LaunchAgents/$UPD_LABEL.plist"
 fi
-find "$PAYLOAD" -name '._*' -delete 2>/dev/null || true
 sh "$SHIPYARD_SCRIPTS/stage_product.sh" "$@"
 
 comp="$STAGING_OUT/mavericks-clang-${CLANG_LINE}-cross-component.pkg"
 sh "$SHIPYARD_SCRIPTS/build_component_pkg.sh" \
-  --root "$PAYLOAD" \
+  --root "$PKGROOT" \
   --identifier "$CROSS_IDENTIFIER" \
   --version "$VER" \
   --install-location "/" \

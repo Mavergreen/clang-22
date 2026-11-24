@@ -255,6 +255,7 @@ jobs:
           name: variant-cross
           path: |
             dist/*cross*.pkg
+            dist/clang22-cross-*-macos-arm64.tar.gz
             dist/build-info-cross.txt
             dist/llvm22-dev-*-darwin-arm64.tar.gz
 
@@ -533,6 +534,7 @@ jobs:
           name: variant-native
           path: |
             dist/*native*.pkg
+            dist/clang22-*-macos-x86_64.tar.gz
             dist/build-info-native.txt
             dist/llvm22-dev-*-darwin-x86_64.tar.gz
 
@@ -746,6 +748,7 @@ jobs:
             dist/llvm22-dev-*-darwin-arm64.tar.gz
             dist/llvm22-dev-*-darwin-x86_64.tar.gz
             dist/clang22-*-linux-x86_64.tar.gz
+            dist/clang22-*-macos-*.tar.gz
             dist/clang22-*-linux-x86_64.manifest.json
 
   # The one place 10.9's own libc++abi and dyld meet what this release ships. The native toolchain and

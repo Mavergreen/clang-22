@@ -1,0 +1,1 @@
+The Linux archive adds llvm-libtool-darwin and carries the product marker, mavergreen.plist, so installing it on Linux no longer downloads the macOS pkg to read the version.

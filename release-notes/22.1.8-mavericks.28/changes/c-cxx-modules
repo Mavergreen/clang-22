@@ -1,0 +1,1 @@
+Building C++ or Objective-C++ with -fmodules against the 10.9 SDK no longer fails with a module cycle, because C++ modules are now off, as in Xcode 5.

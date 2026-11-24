@@ -20,26 +20,27 @@ NAME="mavericks-clang-${CLANG_LINE}-native-$VER.pkg"
 # minutes into an hour. On CI dist/ is runner-local and this is a no-op.
 OUTDIR="$WORK/out"; mkdir -p "$OUTDIR"
 
-rm -rf "$STAGE/SDKs"; ln -s ../sdk109/SDKs "$STAGE/SDKs"
+# Archive first: the standalone archive is the primary artifact, and the pkg's root is derived from it.
+PKGROOT="$WORK/pkgroot-native"
+sh "$HERE/archive-then-pkg-root.sh" "$PAYLOAD" "clang${CLANG_LINE}" "$VER" x86_64 "$DIST" "$PKGROOT"
 
 UPD_APP="${UPD_APP:-}"
 UPD_DIR="/Library/Application Support/Mavergreen"
 UPD_LABEL="$(sh "$SHIPYARD_SCRIPTS/product-name.sh" agent-label "clang${CLANG_LINE}")"
 scr="$OUTDIR/pkg-scripts-native"; rm -rf "$scr"
 . "$HERE/clang-manifest-args.sh"
-set -- "$@" --stage "$PAYLOAD" --scripts-out "$scr"
+set -- "$@" --stage "$PKGROOT" --scripts-out "$scr"
 if [ -n "$UPD_APP" ] && [ -d "$UPD_APP" ]; then
   set -- "$@" --updater-app "$UPD_APP"
 else
   echo ">> WARNING: no updater at '$UPD_APP'; packaging the toolchain alone (build it: shipyard-cmake --build \"\$MAVERICKS_BUILD_ROOT/clang-updater\" --target clang${CLANG_LINE}-updater)" >&2
-  rm -rf "$PAYLOAD$UPD_DIR" "$PAYLOAD/Library/LaunchAgents/$UPD_LABEL.plist"
+  rm -rf "$PKGROOT$UPD_DIR" "$PKGROOT/Library/LaunchAgents/$UPD_LABEL.plist"
 fi
-find "$PAYLOAD" -name '._*' -delete 2>/dev/null || true
 sh "$SHIPYARD_SCRIPTS/stage_product.sh" "$@"
 
 comp="$OUTDIR/mavericks-clang-${CLANG_LINE}-native-component.pkg"
 sh "$SHIPYARD_SCRIPTS/build_component_pkg.sh" \
-  --root "$PAYLOAD" \
+  --root "$PKGROOT" \
   --identifier "$NATIVE_IDENTIFIER" \
   --version "$VER" \
   --install-location "/" \

@@ -1,0 +1,1 @@
+libcxx22's libc++.1.dylib now has an rpath install name, so a program linking it names its directory with -Wl,-rpath, and programs linked before keep working.

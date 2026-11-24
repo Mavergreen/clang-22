@@ -1,0 +1,1 @@
+Each toolchain is now also published as a standalone archive, for x86_64 and arm64, which runs from wherever it is unpacked once bin/setup-sdk names a 10.9 SDK.

@@ -1,0 +1,1 @@
+llvm-install-name-tool now edits a dylib that re-exports another, such as libcxx22's libc++.1.dylib, instead of refusing it.

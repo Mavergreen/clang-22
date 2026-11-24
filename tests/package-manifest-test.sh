@@ -97,7 +97,18 @@ MG select clang "$X" || fail "select must move the clang group to the cross tool
 [ "$(readlink "$F/bin/clang-$CLANG_LINE")" = "../$N/bin/clang" ] \
   || fail "select must leave clang-$CLANG_LINE on the native driver (R4 excludes the cross tree's real bin/clang-$CLANG_LINE; Task A6 refuses the takeover anyway)"
 MG check || fail "mavergreen check must stay clean after select"
-for gone in "clang.cfg-$CLANG_LINE" "portable-ld-$CLANG_LINE" "clang-$CLANG_LINE-$CLANG_LINE" "clang-$CLANG_LINE-$CLANG_LINE-cross" clang.cfg portable-ld "clang.cfg-$CLANG_LINE-cross" "portable-ld-$CLANG_LINE-cross" strip lipo "strip-$CLANG_LINE" "lipo-$CLANG_LINE" "strip-$CLANG_LINE-cross" "lipo-$CLANG_LINE-cross"; do
+for gone in "clang.cfg-$CLANG_LINE" "portable-ld-$CLANG_LINE" "clang-$CLANG_LINE-$CLANG_LINE" "clang-$CLANG_LINE-$CLANG_LINE-cross" clang.cfg portable-ld "clang.cfg-$CLANG_LINE-cross" "portable-ld-$CLANG_LINE-cross" strip lipo "strip-$CLANG_LINE" "lipo-$CLANG_LINE" "strip-$CLANG_LINE-cross" "lipo-$CLANG_LINE-cross" setup-sdk "setup-sdk-$CLANG_LINE" "setup-sdk-$CLANG_LINE-cross"; do
   [ ! -e "$F/bin/$gone" ] && [ ! -L "$F/bin/$gone" ] || fail "$gone must not be exported"
 done
+# Archive first: each toolchain's standalone archive is published beside its pkg, carrying bin/setup-sdk
+# and no SDKs link, manifest or updater; the pkg's tree is the archive's plus the SDKs link.
+for a in "$N-$VER-macos-x86_64" "$X-$VER-macos-arm64"; do
+  [ -f "$DIST/$a.tar.gz" ] || fail "no standalone archive $a.tar.gz in dist"
+  tar -tzf "$DIST/$a.tar.gz" > "$W/$a.list"
+  top="${a%-macos-*}"
+  grep -qx "$top/bin/setup-sdk" "$W/$a.list" || fail "$a carries bin/setup-sdk"
+  if grep -E "^$top/(SDKs|mavergreen\.plist)(/|\$)" "$W/$a.list"; then fail "$a carries no SDKs link and no manifest"; fi
+  if grep -v "^$top/" "$W/$a.list" | grep -q .; then fail "$a has one top directory, $top/"; fi
+done
+[ -x "$V/usr/local/mavergreen/$N/bin/setup-sdk" ] || fail "the native pkg's tree is the archive's, setup-sdk included"
 echo "PASS: package-manifest"

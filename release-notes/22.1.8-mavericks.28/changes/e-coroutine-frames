@@ -1,0 +1,1 @@
+A coroutine now compiles to the same code whichever host built clang22, Linux or macOS.
