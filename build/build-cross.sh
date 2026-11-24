@@ -361,6 +361,10 @@ CFG_TARGET="${TARGET_TRIPLE%"$MACOS_MIN"}"
 # A program that calls CoreFoundation, Security or the objc runtime itself names them, as with any cc.
 # -headerpad_max_install_names leaves room for install names and rpaths changed after the link, as
 # Apple's ld users expect: ld64.lld's default pad left a dylib 40 bytes, too few for one rpath.
+# -fno-cxx-modules: libc++'s per-header C modules and the 10.9 SDK's single Darwin module include each
+# other, so -fmodules on C++ or Objective-C++ failed with a cyclic dependency; Xcode 5 left C++ modules
+# off for this SDK too. C and Objective-C keep theirs; a later -fcxx-modules still overrides it
+# (tests/cxx-modules-test.sh).
 printf '%s\n' \
   "--target=$CFG_TARGET" \
   '-isysroot <CFGDIR>/../SDKs/MacOSX10.9.sdk' \
@@ -369,6 +373,7 @@ printf '%s\n' \
   '-Wl,-dead_strip_dylibs' \
   '--mavergreen-own-libcxx' \
   '-Wl,-headerpad_max_install_names' \
+  '-fno-cxx-modules' \
   '-Wl,-U,__availability_version_check' \
   '-Wl,<CFGDIR>/../lib/librecaulk-libsystem.a' \
   '$-Wl,<CFGDIR>/../lib/librecaulk.a' \
@@ -388,6 +393,7 @@ printf '%s\n' \
   '-Wl,-dead_strip_dylibs' \
   '--mavergreen-own-libcxx' \
   '-Wl,-headerpad_max_install_names' \
+  '-fno-cxx-modules' \
   '-Wl,-U,__availability_version_check' \
   '-Wl,<CFGDIR>/../lib/librecaulk-libsystem.a' \
   '$-Wl,<CFGDIR>/../lib/librecaulk.a' \
