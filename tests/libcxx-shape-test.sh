@@ -87,7 +87,10 @@ $own"
   # The two greps below pass on empty input, so first prove otool printed the load commands.
   grep -q 'LC_ID_DYLIB' "$T/lc" || fail "$OTOOL -l $d printed no LC_ID_DYLIB, so no load commands were read"
   if grep -q LC_RPATH "$T/lc"; then fail "$lib has an LC_RPATH"; fi
-  if grep -E '@rpath|libunwind' "$T/lc"; then fail "$lib names @rpath or libunwind in a load command"; fi
+  # Its own install name is checked above (libc++.1's is @rpath/libc++.1.dylib); every other load
+  # command names no @rpath and no libunwind.
+  awk '/cmd LC_ID_DYLIB/ { skip = 1 } skip && / name / { skip = 0; next } !skip' "$T/lc" > "$T/lc-loads"
+  if grep -E '@rpath|libunwind' "$T/lc-loads"; then fail "$lib names @rpath or libunwind in a load command"; fi
 
   exports "$d" "$T/$lib"
   # libRecaulkSystem stays the one exporter of Recaulk's back-fills, but for those a program built
