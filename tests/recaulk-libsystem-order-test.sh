@@ -35,7 +35,9 @@ for drv in clang clang++; do
   "$TC/bin/$drv" -lSystem "$t/stack.o" -o "$t/stack-$drv"
   "$TC/bin/llvm-nm" -m "$t/stack-$drv" | grep -E ' _pthread_get_stacksize_np( \(from [^)]*\))?$' > "$t/nm-$drv" || true
   ! grep -q 'from libSystem' "$t/nm-$drv" || { cat "$t/nm-$drv"; fail "$drv -lSystem first: pthread_get_stacksize_np is libSystem's, not Recaulk's"; }
-  grep -q '(__TEXT,__text) external _pthread_get_stacksize_np$' "$t/nm-$drv" \
+  # platform: Recaulk 20261121.8 made librecaulk.a's definition weak and hidden (its
+  #           build/image-local-shadows.txt), so the program's copy is non-external; it is still the program's
+  grep -Eq '\(__TEXT,__text\) (non-)?external( \(was a private external\))? _pthread_get_stacksize_np$' "$t/nm-$drv" \
     || { cat "$t/nm-$drv"; fail "$drv -lSystem first: the program defines no pthread_get_stacksize_np"; }
 done
 echo "PASS: -lSystem named first still binds Recaulk's pthread_get_stacksize_np"
