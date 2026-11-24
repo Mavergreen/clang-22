@@ -722,14 +722,16 @@ jobs:
         if: needs.build-cross.outputs.publish == 'yes'
         # collect runs on Linux, where artifact-facts reads Mach-O only with LIPO, OTOOL and NM named:
         # this release's own Linux archive carries llvm-lipo, llvm-otool (a link to llvm-objdump) and llvm-nm.
+        # llvm-ar beside llvm-nm becomes macho-cxxabi's AR: GNU ar cannot pull duplicate members out of a
+        # Darwin archive (libclangCodeGen.a has two AMDGPU.cpp.o).
         run: |
           rd="$RUNNER_TEMP/macho-readers"; mkdir -p "$rd"
           tar -xzf dist/clang22-*-linux-x86_64.tar.gz -C "$rd" \
             opt/mavergreen/clang22/bin/llvm-lipo opt/mavergreen/clang22/bin/llvm-otool opt/mavergreen/clang22/bin/llvm-objdump \
-            opt/mavergreen/clang22/bin/llvm-nm
+            opt/mavergreen/clang22/bin/llvm-nm opt/mavergreen/clang22/bin/llvm-ar
           b="$rd/opt/mavergreen/clang22/bin"
           export LIPO="$b/llvm-lipo" OTOOL="$b/llvm-otool" NM="$b/llvm-nm"
-          "$OTOOL" --version >/dev/null && "$LIPO" -version >/dev/null && "$NM" --version >/dev/null
+          "$OTOOL" --version >/dev/null && "$LIPO" -version >/dev/null && "$NM" --version >/dev/null && "$b/llvm-ar" --version >/dev/null
           sh "$SHIPYARD_SCRIPTS/artifact-facts.sh" dist "${{ needs.build-cross.outputs.version }}" \
             | sh "$SHIPYARD_SCRIPTS/check-artifact-conformance.sh"
 
