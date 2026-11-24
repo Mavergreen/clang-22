@@ -26,10 +26,8 @@ UPD_APP="${UPD_APP:-}"
 UPD_DIR="/Library/Application Support/Mavergreen"
 UPD_LABEL="$(sh "$SHIPYARD_SCRIPTS/product-name.sh" agent-label "clang${CLANG_LINE}")"
 scr="$OUTDIR/pkg-scripts-native"; rm -rf "$scr"
-set -- --stage "$PAYLOAD" --product "clang${CLANG_LINE}" --name "Clang ${CLANG_LINE} for Mavericks" \
-  --group clang --line "$CLANG_LINE" --version "$VER" \
-  --exclude "bin/clang-${CLANG_LINE}" --exclude bin/clang.cfg --exclude bin/clang++.cfg --exclude bin/portable-ld --exclude bin/strip --exclude bin/lipo \
-  --requires sdk109 --scripts-out "$scr"
+. "$HERE/clang-manifest-args.sh"
+set -- "$@" --stage "$PAYLOAD" --scripts-out "$scr"
 if [ -n "$UPD_APP" ] && [ -d "$UPD_APP" ]; then
   set -- "$@" --updater-app "$UPD_APP"
 else

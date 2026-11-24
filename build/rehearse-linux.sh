@@ -25,4 +25,5 @@ for test in catch-align weak-bind-order cxxabi-interop profile-runtime; do
   sh "$HERE/../tests/$test-test.sh"
 done
 [ "$(cat "$TEST_OUT/cxxabi/shapes")" = 'static dylib' ] || { echo 'missing required dylib interop shape' >&2; exit 1; }
+sh "$HERE/render-linux-manifest.sh" "$TC"
 sh "$HERE/package-linux.sh" "$TC" "$WORK/linux-dist"

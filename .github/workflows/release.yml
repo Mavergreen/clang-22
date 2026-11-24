@@ -657,6 +657,9 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with: { name: variant-linux, path: dist }
+      # install@v1 reads the product marker from the Linux archive instead of the pkg, so the two must agree.
+      - name: The Linux archive's mavergreen.plist is the native pkg's
+        run: sh build/check-linux-manifest.sh dist
 
       # The body travels IN the artifact: publish-release.yml does not check out the repo. One call
       # writes the file both sign_and_appcast.sh invocations below (native + cross) and the Release
