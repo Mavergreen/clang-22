@@ -102,6 +102,13 @@ picks which one owns the bare names:
 libcxx22 is relinked from the cross build's `libc++.a` by `build/build-libcxx.sh`; its group is `libcxx`,
 and its build-info agrees with the toolchains on `llvm`, `recaulk` and `target`.
 
+**`libc++.1.dylib` is `@rpath/libc++.1.dylib`** (from 22.1.8-mavericks.28), at the same path as before,
+for good. A program that links it names the directory with an LC_RPATH
+(`-Wl,-rpath,/usr/local/mavergreen/libcxx22/lib`), or bundles the dylibs beside itself and names that.
+One linked against an earlier libcxx22 by the absolute name still loads this same file, so one copy
+runs in any load order (swift proved it on 10.9.5's dyld). `libc++abi.1.dylib` keeps its absolute
+install name, which keeps libc++abi single. Never bundle a copy of either with an absolute install name.
+
 **One C++ ABI, the system's.** libc++ is built on `/usr/lib/libc++abi.dylib`, as Apple builds it, and no
 libc++abi or libunwind of LLVM's ships. Every C++ program clang22 links statically takes libc++.a and the
 system's libc++abi, and libcxx22's `libc++abi.1.dylib` is not LLVM's: it re-exports the system's and

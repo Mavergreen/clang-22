@@ -26,11 +26,6 @@ NM="${NM:-nm}"; OTOOL="${OTOOL:-otool}"
 [ -x "$TC/bin/clang++" ] || { echo "no toolchain at $TC -- skipping"; exit 77; }
 [ -f "$LIBCXX_LIB/libc++.1.dylib" ] && [ -f "$LIBCXX_LIB/libc++abi.1.dylib" ] \
   || { echo "libcxx22 not staged at $LIBCXX_LIB -- skipping"; exit 77; }
-# dyld tries the install name first and the fallback path only when that is missing, so with libcxx22
-# installed a staged copy would never load: the run would test the installed one and pass for it.
-if [ "$LIBCXX_LIB" != "$LIBCXX_PREFIX/lib" ] && [ -e "$LIBCXX_PREFIX/lib/libc++.1.dylib" ]; then
-  echo "libcxx22 is installed at $LIBCXX_PREFIX, which dyld would load instead of $LIBCXX_LIB -- skipping"; exit 77
-fi
 
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
 [ -d "$SDK" ] || { echo "FAIL: 10.9 SDK not found: '$SDK'" >&2; exit 1; }
@@ -42,22 +37,15 @@ cxx() {
   "$TC/bin/clang++" --no-default-config --target="$TARGET_TRIPLE" -isysroot "$SDK" \
     -mmacosx-version-min="$MACOS_MIN" -fuse-ld=lld -nostdinc++ \
     -isystem "$TC/include/c++/v1" -isystem "$TC/include/recaulk" \
-    -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" "$@"
+    -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" -Wl,-rpath,"$LIBCXX_LIB" "$@"
 }
 
-# How to execute an x86_64 binary. On an x86_64 host, directly. Elsewhere also directly, never through
-# /usr/bin/arch: SIP strips DYLD_* across a protected binary, so the dylibs would not be found.
-# A staged lib whose install name points at a prefix that is not installed needs a DYLD path on every
-# host; an installed one ($LIBCXX_PREFIX/lib) needs none. It is the FALLBACK path on purpose: dyld tries
-# the install name first, and only then the leaf name in the fallback directory. DYLD_LIBRARY_PATH would
-# also redirect the program's dlopen("/usr/lib/libc++.1.dylib") to the staged dylib (same leaf name),
-# so the system libc++ would never load and the coexistence check would be hollow.
-# ONE env invocation sets every DYLD_* and execs the program itself: no protected binary (env, sh, arch)
-# may sit between an assignment and the program. Usage: run [VAR=val ...] program
-run() {
-  if [ "$LIBCXX_LIB" = "$LIBCXX_PREFIX/lib" ]; then env "$@"
-  else env DYLD_FALLBACK_LIBRARY_PATH="$LIBCXX_LIB" "$@"; fi
-}
+# How to execute an x86_64 binary: directly, never through /usr/bin/arch, since SIP strips DYLD_*
+# across a protected binary. libc++.1.dylib is @rpath/libc++.1.dylib and the program's LC_RPATH names
+# LIBCXX_LIB, so the copy there loads, and libc++abi.1.dylib beside it (libc++ re-exports it by
+# @loader_path), even with libcxx22 installed: no DYLD path is needed. ONE env invocation sets any DYLD_*
+# and execs the program itself. Usage: run [VAR=val ...] program
+run() { env "$@"; }
 
 echo "==> compile"
 cxx -dynamiclib -install_name @executable_path/libthrower.dylib "$HERE/libcxx/thrower.cpp" -o "$t/libthrower.dylib" \
@@ -67,8 +55,10 @@ cxx "$HERE/libcxx/runtime.cpp" "$t/libthrower.dylib" -o "$t/runtime" \
 
 echo "==> the program links the dylibs, not a static runtime"
 deps="$("$OTOOL" -L "$t/runtime")"
-printf '%s\n' "$deps" | grep -q "$LIBCXX_PREFIX/lib/libc++.1.dylib" \
-  || { echo "FAIL: does not link $LIBCXX_PREFIX/lib/libc++.1.dylib" >&2; printf '%s\n' "$deps" >&2; exit 1; }
+printf '%s\n' "$deps" | grep -q "@rpath/libc++.1.dylib" \
+  || { echo "FAIL: does not link @rpath/libc++.1.dylib" >&2; printf '%s\n' "$deps" >&2; exit 1; }
+"$OTOOL" -l "$t/runtime" | grep -A2 LC_RPATH | grep -q " path $LIBCXX_LIB " \
+  || { echo "FAIL: no LC_RPATH to $LIBCXX_LIB, so @rpath/libc++.1.dylib cannot load" >&2; exit 1; }
 if printf '%s\n' "$deps" | grep -q '/usr/lib/libc++\.1\.dylib '; then
   echo "FAIL: links the system /usr/lib/libc++.1.dylib" >&2; exit 1
 fi

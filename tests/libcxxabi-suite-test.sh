@@ -26,14 +26,8 @@ T="$SRC/libcxxabi/test"
 w="$(mktemp -d "${TMPDIR:-/tmp}/libcxxabi-suite.XXXXXX")"
 trap 'rm -rf "$w"' EXIT
 
-# dyld tries the install name first, so a staged libcxx22 would lose to an installed one (as
-# tests/libcxx-runtime-test.sh).
-RUN_ENV=""
-if [ "$LIBCXX_LIB" != "$LIBCXX_PREFIX/lib" ]; then
-  [ ! -e "$LIBCXX_PREFIX/lib/libc++.1.dylib" ] \
-    || { echo "FAIL: libcxx22 is installed at $LIBCXX_PREFIX, which dyld would load instead of $LIBCXX_LIB"; exit 1; }
-  RUN_ENV="DYLD_FALLBACK_LIBRARY_PATH=$LIBCXX_LIB"
-fi
+# libc++.1.dylib is @rpath/libc++.1.dylib and each test names LIBCXX_LIB by LC_RPATH, so that copy loads
+# even with libcxx22 installed (as tests/libcxx-runtime-test.sh); no DYLD path is needed.
 
 # spec: libcxxabi/test/configs/llvm-libc++abi-shared.cfg.in -- the suite's own %{compile_flags}:
 #       its support headers and libc++'s, libc++'s src/ (the guard and fallback-malloc tests include
@@ -43,7 +37,7 @@ cxx() {
   case "$shape" in
     static) "$TC/bin/clang++" "$@" ;;
     dylib)  "$TC/bin/clang++" -nostdinc++ -isystem "$TC/include/c++/v1" -isystem "$TC/include/recaulk" \
-              -nostdlib++ "$@" "$LIBCXX_LIB/libc++.1.dylib" "$TC/lib/librecaulk.a" ;;
+              -nostdlib++ "$@" "$LIBCXX_LIB/libc++.1.dylib" -Wl,-rpath,"$LIBCXX_LIB" "$TC/lib/librecaulk.a" ;;
   esac
 }
 # spec: llvm/utils/lit and libcxx/utils/libcxx/test/format.py -- the lit directives the suite's tests
@@ -81,7 +75,7 @@ for src in "$T"/*.pass.cpp "$T"/incomplete_type.sh.cpp; do
       *) echo "FAIL: $name ($shape): expected.txt says '$want'"; fail=1; continue ;;
     esac
     exe="$w/$shape-$name"; n=$((n + 1))
-    if build "$name" "$src" "$exe" > "$exe.log" 2>&1 && (cd "$w" && env $RUN_ENV "$exe") >> "$exe.log" 2>&1; then
+    if build "$name" "$src" "$exe" > "$exe.log" 2>&1 && (cd "$w" && "$exe") >> "$exe.log" 2>&1; then
       got=pass
     else
       got=fail

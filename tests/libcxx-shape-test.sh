@@ -49,6 +49,8 @@ for f in "$SDK/usr/lib/libc++abi.dylib" "$SDK/usr/lib/libc++abi.tbd"; do [ -f "$
 
 for lib in libc++abi.1 libc++.1; do
   d="$L/$lib.dylib"; want_id="$LIBCXX_PREFIX/lib/$lib.dylib"
+  # libc++ is found by rpath (build-libcxx.sh); libc++abi keeps its absolute name, so it stays single.
+  [ "$lib" != libc++.1 ] || want_id=@rpath/libc++.1.dylib
   "$OTOOL" -D "$d" > "$T/id" || fail "$OTOOL -D $d"
   id="$(tail -n +2 "$T/id")"
   [ "$id" = "$want_id" ] || fail "$lib install name '$id', want '$want_id'"

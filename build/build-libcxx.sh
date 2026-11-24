@@ -101,7 +101,11 @@ LINK="--no-default-config --target=$TARGET_TRIPLE -isysroot $SDK -mmacosx-versio
 "$CC" $LINK -install_name @loader_path/libc++abi.1.dylib \
   "$@" "$RECAULK_EXPORTS_A" -Wl,-reexport-lc++abi "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++abi.exp" -o "$EXP/libc++abi.1-reexported-as.dylib"
-"$CC" $LINK -install_name "$LIBCXX_PREFIX/lib/libc++.1.dylib" \
+# libc++.1.dylib is @rpath/libc++.1.dylib, at the same path: a program names the directory with an
+# LC_RPATH (-Wl,-rpath,$LIBCXX_PREFIX/lib) or bundles it beside itself, and one already linked by the old
+# absolute name still loads this same file, so one copy runs in any load order (swift's 10.9.5 proof,
+# 2026-11-23). libc++abi.1.dylib keeps its absolute name, which keeps libc++abi single.
+"$CC" $LINK -install_name @rpath/libc++.1.dylib \
   -Wl,-force_load,"$RTDIR/libc++.a" -Wl,-reexport_library,"$EXP/libc++abi.1-reexported-as.dylib" -Wl,-reexport-lc++abi "$RECAULK_A" \
   -Wl,-exported_symbols_list,"$EXP/libc++.exp" -o "$OUT/libc++.1.dylib"
 

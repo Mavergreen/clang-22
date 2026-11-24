@@ -67,19 +67,14 @@ for vt in __ZTVN10__cxxabiv119__pointer_type_infoE __ZTVN10__cxxabiv129__pointer
     || { echo "FAIL: the toolchain's clang++ takes $vt from libc++abi, not Recaulk, so 10.9's catch rules apply"; exit 1; }
 done
 echo "ok: the pointer catch rules are linked in"
-RUN_DYLIB=""
-# dyld tries the install name first, so with libcxx22 installed a staged copy would never load (as
-# tests/libcxx-runtime-test.sh): the run would test the installed one.
-if [ "$LIBCXX_LIB" != "$LIBCXX_PREFIX/lib" ] && [ -e "$LIBCXX_PREFIX/lib/libc++.1.dylib" ]; then
-  echo "note: libcxx22 is installed at $LIBCXX_PREFIX, which dyld would load instead of $LIBCXX_LIB -- the dylib shape is not checked"
-elif [ -f "$LIBCXX_LIB/libc++.1.dylib" ] && [ -f "$LIBCXX_LIB/libc++abi.1.dylib" ]; then
-  # As tests/libcxx-runtime-test.sh: a staged libcxx22 links where it is (its re-export is by
-  # @loader_path) and is reached at run time through DYLD_FALLBACK_LIBRARY_PATH; an installed one needs
-  # neither.
-  [ "$LIBCXX_LIB" = "$LIBCXX_PREFIX/lib" ] || RUN_DYLIB="DYLD_FALLBACK_LIBRARY_PATH=$LIBCXX_LIB"
+# libcxx22's libc++.1.dylib is @rpath/libc++.1.dylib, and the program names LIBCXX_LIB by LC_RPATH, so the
+# copy there loads (libc++abi.1.dylib beside it, by libc++'s @loader_path re-export) even with libcxx22
+# installed; @executable_path/libcxx is where the target runner puts them.
+if [ -f "$LIBCXX_LIB/libc++.1.dylib" ] && [ -f "$LIBCXX_LIB/libc++abi.1.dylib" ]; then
   ours cc_plain -nostdinc++ -isystem "$TC/include/c++/v1" \
     -isystem "$TC/include/recaulk" -o "$t/interop-dylib" \
-    -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" "$TC/lib/librecaulk.a" -lobjc \
+    -nostdlib++ "$LIBCXX_LIB/libc++.1.dylib" -Wl,-rpath,"$LIBCXX_LIB" -Wl,-rpath,@executable_path/libcxx \
+    "$TC/lib/librecaulk.a" -lobjc \
     || { echo "FAIL: could not build interop.mm against libcxx22"; exit 1; }
   # ...and on libcxx22, its libc++abi.1.dylib exports them, ahead of the system's it re-exports.
   for vt in __ZTVN10__cxxabiv119__pointer_type_infoE __ZTVN10__cxxabiv129__pointer_to_member_type_infoE; do
