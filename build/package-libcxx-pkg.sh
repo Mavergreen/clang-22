@@ -22,24 +22,32 @@ NAME="libcxx${CLANG_LINE}-$VER.pkg"
 # Assemble on LOCAL disk and move the finished artifact into dist/ (see package-native-pkg.sh).
 OUTDIR="$WORK/out"; mkdir -p "$OUTDIR"
 
+# Archive first: the standalone archive is the pkg's tree unchanged (no SDK, nothing bundled, no
+# pkg-only path), and the pkg's root is derived from it. libc++abi.1.dylib keeps its absolute install
+# name there too, a declared standalone deviation (INGREDIENTS.md).
+rm -rf "$PAYLOAD/Library" "$PAYLOAD/Applications" "$STAGE/mavergreen.plist"
+sh "$SHIPYARD_SCRIPTS/stage_standalone.sh" "$PAYLOAD" "libcxx${CLANG_LINE}" "$VER" x86_64 "$DIST/libcxx${CLANG_LINE}-$VER-macos-x86_64.tar.gz"
+PKGROOT="$WORK/pkgroot-libcxx"; rm -rf "$PKGROOT"
+sh "$SHIPYARD_SCRIPTS/stage_pkg_from_archive.sh" --repo "$HERE/.." \
+  "$DIST/libcxx${CLANG_LINE}-$VER-macos-x86_64.tar.gz" "$HERE/../packaging/libcxx${CLANG_LINE}.standalone-bundled" "$PKGROOT"
+
 UPD_APP="${UPD_APP:-}"
 UPD_DIR="/Library/Application Support/Mavergreen"
 UPD_LABEL="$(sh "$SHIPYARD_SCRIPTS/product-name.sh" agent-label "libcxx${CLANG_LINE}")"
 scr="$OUTDIR/pkg-scripts-libcxx"; rm -rf "$scr"
-set -- --stage "$PAYLOAD" --product "libcxx${CLANG_LINE}" --name "libc++ ${CLANG_LINE} for Mavericks" \
+set -- --stage "$PKGROOT" --product "libcxx${CLANG_LINE}" --name "libc++ ${CLANG_LINE} for Mavericks" \
   --group libcxx --line "$CLANG_LINE" --version "$VER" --scripts-out "$scr"
 if [ -n "$UPD_APP" ] && [ -d "$UPD_APP" ]; then
   set -- "$@" --updater-app "$UPD_APP"
 else
   echo ">> WARNING: no updater at '$UPD_APP'; packaging the runtime alone (build it: shipyard-cmake --build \"\$MAVERICKS_BUILD_ROOT/clang-updater-libcxx\" --target libcxx${CLANG_LINE}-updater)" >&2
-  rm -rf "$PAYLOAD$UPD_DIR" "$PAYLOAD/Library/LaunchAgents/$UPD_LABEL.plist"
+  rm -rf "$PKGROOT$UPD_DIR" "$PKGROOT/Library/LaunchAgents/$UPD_LABEL.plist"
 fi
-find "$PAYLOAD" -name '._*' -delete 2>/dev/null || true
 sh "$SHIPYARD_SCRIPTS/stage_product.sh" "$@"
 
 comp="$OUTDIR/libcxx${CLANG_LINE}-component.pkg"
 sh "$SHIPYARD_SCRIPTS/build_component_pkg.sh" \
-  --root "$PAYLOAD" \
+  --root "$PKGROOT" \
   --identifier "$LIBCXX_IDENTIFIER" \
   --version "$VER" \
   --install-location "/" \

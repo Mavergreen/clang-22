@@ -309,6 +309,7 @@ jobs:
           name: variant-libcxx
           path: |
             dist/libcxx*.pkg
+            dist/libcxx22-*-macos-x86_64.tar.gz
             dist/build-info-libcxx.txt
 
       # TAR, not a raw directory upload. upload-artifact does not preserve the executable bit and
@@ -749,6 +750,7 @@ jobs:
             dist/llvm22-dev-*-darwin-x86_64.tar.gz
             dist/clang22-*-linux-x86_64.tar.gz
             dist/clang22-*-macos-*.tar.gz
+            dist/libcxx22-*-macos-x86_64.tar.gz
             dist/clang22-*-linux-x86_64.manifest.json
 
   # The one place 10.9's own libc++abi and dyld meet what this release ships. The native toolchain and

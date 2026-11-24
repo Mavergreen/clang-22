@@ -172,6 +172,7 @@ and `identifier` are the keys that are supposed to differ.
 
 ## Conformance deviations
 
+- standalone-install-name:*/libcxx22/lib/libc++abi.1.dylib: absolute install name keeps one libc++abi per process (revisit: the Drydock C++-runtime checker ships, and shipyard's archive check calls it instead)
 - shipyard-cmake-only:build/build-linux.sh: the Linux host compiler bootstraps with the exact Ubuntu CMake locked in build/linux/packages.lock; the shipped CMake product currently has only Mac host binaries. Reconsider when a Linux CMake product is available.
 - shipyard-cmake-only:build/configure-linux.sh: configures that same locked Linux bootstrap with Ubuntu CMake; no Mac CMake binary can execute in the baseline container. Reconsider with a Linux CMake product.
 - rosetta:tests/target/host-run.sh: preserves the existing Mac runtime-test policy when executing saved x86_64 witnesses on Apple Silicon, including profile-test Rosetta setup. Linux never calls this helper. Reconsider when Mac build jobs can execute the witnesses on an Intel host; before macOS 28 removes Rosetta.

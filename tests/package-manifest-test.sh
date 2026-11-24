@@ -110,5 +110,9 @@ for a in "$N-$VER-macos-x86_64" "$X-$VER-macos-arm64"; do
   if grep -E "^$top/(SDKs|mavergreen\.plist)(/|\$)" "$W/$a.list"; then fail "$a carries no SDKs link and no manifest"; fi
   if grep -v "^$top/" "$W/$a.list" | grep -q .; then fail "$a has one top directory, $top/"; fi
 done
+tar -tzf "$DIST/$L-$VER-macos-x86_64.tar.gz" | sort > "$W/lx.list"
+printf '%s\n' "$L-$VER/" "$L-$VER/lib/" "$L-$VER/lib/libc++.1.dylib" "$L-$VER/lib/libc++abi.1.dylib" | sort > "$W/lx.want"
+sed 's|/$||' "$W/lx.list" > "$W/lx.a"; sed 's|/$||' "$W/lx.want" > "$W/lx.b"
+cmp -s "$W/lx.a" "$W/lx.b" || { diff "$W/lx.b" "$W/lx.a"; fail "$L's standalone archive is the pkg's tree, the two dylibs alone"; }
 [ -x "$V/usr/local/mavergreen/$N/bin/setup-sdk" ] || fail "the native pkg's tree is the archive's, setup-sdk included"
 echo "PASS: package-manifest"

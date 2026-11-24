@@ -1,0 +1,1 @@
+libcxx22 is also published as a standalone archive, whose libc++abi keeps its installed path, so a program using it unpacked elsewhere is rewritten to match.
