@@ -44,7 +44,10 @@ commands that outgrow the header pad, as Apple's install_name_tool does, instead
 link references, as ld64 does, and `-dead_strip_dylibs` cannot leave export-trie entries naming no
 dylib (Aqua WebKit's), and
 `0010-clang-cc1as-target-sdk-version.patch`, so an assembled object records the SDK version the driver
-passes, as a compiled one does, and arm64 objects assembled from `.S` meet the 11.3 SDK pin (ours). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
+passes, as a compiled one does, and arm64 objects assembled from `.S` meet the 11.3 SDK pin (ours), and
+`0011-llvm-coro-frame-stable-alloca-sort.patch`, so a coroutine frame's layout depends on the IR alone,
+not on the C++ library the compiler was built against: the Linux-hosted and Mac-hosted clang22 lay out
+the same frame alike (ours, the same bytes as swift's). The cfgs also pass `-headerpad_max_install_names`, so what the toolchain
 links can take new install names and rpaths afterwards. The members of `librecaulk.a` that override a
 name 10.9's libSystem exports (`pthread_get_stacksize_np`, `sysconf`, `close`, `posix_spawn` and the rest,
 derived at build time) also go in `librecaulk-libsystem.a`, ahead of the program's inputs, so a link that
