@@ -12,7 +12,7 @@ export COPYFILE_DISABLE=1
 STAGE="$LIBCXX_STAGE"
 [ -f "$STAGE/lib/libc++.1.dylib" ] && [ -f "$STAGE/lib/libc++abi.1.dylib" ] \
   || { echo "FATAL: run build-libcxx.sh first" >&2; exit 1; }
-VER="$(sh "$SHIPYARD_SCRIPTS/resolve-version.sh" "$(sh "$SHIPYARD_SCRIPTS/release-mode.sh")")"
+VER="$PKG_VERSION"   # versions.sh: VERSION, which release.yml writes from version-check's tag
 DIST="${DIST:-$HERE/../dist}"; mkdir -p "$DIST"
 # The payload root is the stage minus the install prefix, so the guard above and the payload always
 # name the same tree, wherever LIBCXX_STAGE points.

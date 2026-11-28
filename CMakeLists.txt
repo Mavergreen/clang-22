@@ -26,13 +26,13 @@ find_package(MavericksShipyard REQUIRED)
 include(Mavericks)          # AppleClang gate + build conventions
 include(MavericksSparkle)   # the Sparkle updater .app builder
 
-# VERSION is written by release.yml (or a local `sh build/version.sh auto`) and is gitignored, so a
+# VERSION is written by release.yml (or locally by release-version.sh) and is gitignored, so a
 # fresh checkout has none. Say that outright: the alternative is file(STRINGS) returning empty and the
 # line regex below failing with a message about a version nobody tried to set.
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/VERSION")
   message(FATAL_ERROR
     "no ${CMAKE_SOURCE_DIR}/VERSION -- it is gitignored and written per build. Run:\n"
-    "  sh build/version.sh auto | sed -n 's/^FULL=//p' > VERSION")
+    "  sh \"$SHIPYARD_SCRIPTS/release-version.sh\" --product clang22 > VERSION")
 endif()
 file(STRINGS "${CMAKE_SOURCE_DIR}/VERSION" MAV_CLANG_VERSION LIMIT_COUNT 1)
 

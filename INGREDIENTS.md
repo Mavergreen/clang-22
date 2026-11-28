@@ -170,6 +170,10 @@ the link farm. Their `build-info-*.txt` records must agree on `llvm` and `recaul
 (conformance compares any key appearing in more than one variant); `variant`, `arch`, `prefix`, `pkg`
 and `identifier` are the keys that are supposed to differ.
 
+## Versioning
+
+- port
+
 ## Conformance deviations
 
 - standalone-install-name:*/libcxx22/lib/libc++abi.1.dylib: absolute install name keeps one libc++abi per process (revisit: the Drydock C++-runtime checker ships, and shipyard's archive check calls it instead)

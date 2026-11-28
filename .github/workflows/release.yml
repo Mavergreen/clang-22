@@ -1,8 +1,9 @@
 name: release
 
-# Both clang-22 variants, built on FREE standard macos runners. A push to main that brings a new LLVM
-# upstream auto-cuts <upstream>-mavericks.1; a tag publishes that tag; a local_release dispatch cuts the
-# next -mavericks.N; anything else builds without publishing. build-cross (the big build: clang+lld +
+# Both clang-22 variants, built on FREE standard macos runners. The version is the declared port
+# scheme's (INGREDIENTS.md ## Versioning), derived once by version-check: a push to main that brings a
+# new LLVM upstream auto-cuts <upstream>-mavericks.1; a local_release dispatch cuts the next
+# -mavericks.N; anything else builds without publishing. build-cross (the big build: clang+lld +
 # the x86_64/10.9 runtimes, which it also relinks and packages as libcxx22) hands its staged
 # toolchain to build-native, which cross-HOSTS the x86_64/10.9 clang using it as the compiler. No
 # 10.9 runner anywhere; the compat guards + emitted-binary smokes are the in-CI equivalence proof.
@@ -10,7 +11,6 @@ name: release
 on:
   push:
     branches: [main]
-    tags: ['*-mavericks.*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -24,7 +24,7 @@ permissions:
   contents: write
 
 # Only a pull_request supersedes -- keyed per ref, so a force-push replaces its own predecessor.
-# Everything else (a branch push, a *-mavericks.* tag, a workflow_dispatch) is keyed per RUN and is
+# Everything else (a branch push, a workflow_dispatch) is keyed per RUN and is
 # therefore alone in its group: never queued, never evicted, never cancelled.
 #
 # cancel-in-progress:false was never the protection it looked like: it protects the RUNNING job and
@@ -47,15 +47,53 @@ env:
   MAVERICKS_USE_CCACHE: "1"
 
 jobs:
+  # The one place the version is decided, on Linux, before any macOS minute is spent: the declared
+  # port scheme's tag (release-version.sh), and whether this run publishes it. A local_release dispatch
+  # cuts N+1 and publishes; otherwise only a new upstream, whose tag is not minted yet, publishes, and
+  # only from main. check-release-version.sh refuses a mismatched version, and a publishing run whose
+  # notes are missing (release-notes/<tag>/changes/, unless only pins moved).
+  version-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      publish: ${{ steps.tag.outputs.publish }}
+      mode: ${{ steps.tag.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }   # the -mavericks.N tags the version counts
+
+      - name: Install mavericks-shipyard
+        uses: Mavergreen/shipyard/.github/actions/install@v1
+
+      - id: tag
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          LOCAL_RELEASE: ${{ inputs.local_release }}
+        run: |
+          set -eu
+          mode="$(sh "$SHIPYARD_SCRIPTS/release-mode.sh")"
+          t="$(sh "$SHIPYARD_SCRIPTS/release-version.sh" --product clang22 --mode "$mode")"
+          pub=no
+          if [ "$GITHUB_REF_NAME" = main ] && [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            if [ "$mode" = local ] || ! git rev-parse -q --verify "refs/tags/$t" >/dev/null; then pub=yes; fi
+          fi
+          sh "$SHIPYARD_SCRIPTS/check-release-version.sh" --product clang22 --version "$t" --sha "$GITHUB_SHA" \
+            --mode "$mode" --publishing "$pub"
+          { echo "tag=$t"; echo "publish=$pub"; echo "mode=$mode"; } >> "$GITHUB_OUTPUT"
+          echo "version=$t publish=$pub mode=$mode"
+
   build-cross:
+    needs: version-check
     runs-on: macos-26   # Apple Silicon (arm64); use macos-15 if 26 unavailable
     timeout-minutes: 355   # safety cap, under GitHub's 360-minute hard limit
     outputs:
-      version: ${{ steps.ver.outputs.full }}
-      publish: ${{ steps.ver.outputs.release }}
+      version: ${{ needs.version-check.outputs.tag }}
+      publish: ${{ needs.version-check.outputs.publish }}
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }   # version.sh counts existing <upstream>-mavericks.* tags
+        with: { fetch-depth: 0 }   # release-notes.sh and the ingredient checks read history
 
       - name: Install mavericks-shipyard
         uses: Mavergreen/shipyard/.github/actions/install@v1
@@ -77,25 +115,8 @@ jobs:
           command -v gpg >/dev/null 2>&1 || brew install gnupg
           command -v ccache >/dev/null 2>&1 || brew install ccache
 
-      - name: Resolve version (force no-publish off main/non-tag)
-        id: ver
-        run: |
-          set -eu
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            full="$GITHUB_REF_NAME"; rel=yes
-          else
-            mode="$(sh "$SHIPYARD_SCRIPTS/release-mode.sh")"
-            out="$(sh build/version.sh "$mode")"
-            full="$(printf '%s\n' "$out" | sed -n 's/^FULL=//p')"
-            rel="$(printf '%s\n' "$out" | sed -n 's/^RELEASE=//p')"
-            [ "$GITHUB_REF_NAME" = main ] || rel=no
-          fi
-          printf '%s\n' "$full" > VERSION
-          { echo "full=$full"; echo "release=$rel"; } >> "$GITHUB_OUTPUT"
-          echo "version=$full publish=$rel"
-        env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          LOCAL_RELEASE: ${{ inputs.local_release }}
+      - name: Pin the version decided by version-check
+        run: printf '%s\n' "${{ needs.version-check.outputs.tag }}" > VERSION
 
       - name: Restore ccache (cross)
         uses: actions/cache@v6
@@ -384,11 +405,10 @@ jobs:
       - name: Ensure ccache
         run: command -v ccache >/dev/null 2>&1 || brew install ccache
 
-      # Both variants MUST label themselves with one version. build-cross already resolved it; writing
-      # it here means package-native-pkg.sh reuses that answer instead of re-deriving from tags, which
-      # a tag pushed mid-run could answer differently -- two halves of one release disagreeing is the
-      # exact failure resolve-version.sh exists to prevent.
-      - name: Pin the version resolved by build-cross
+      # Both variants MUST label themselves with one version, version-check's: package-native-pkg.sh
+      # reads VERSION instead of re-deriving from tags, which a tag minted mid-run could answer
+      # differently -- two halves of one release disagreeing.
+      - name: Pin the version decided by version-check
         run: printf '%s\n' "${{ needs.build-cross.outputs.version }}" > VERSION
 
       - name: Restore the cross handoff (the build-native.sh compiler + LLVM source)
@@ -672,12 +692,12 @@ jobs:
       # variant -- the cross feed below carries its own real floor (--min-os 11.0) independently.
       #
       # CLANG_LINE is derived the same way every other call site in this repo derives it
-      # (version.sh, versions.sh): from the root UPSTREAM_VERSION, not configured here.
+      # (clang-line.sh, versions.sh): from the root UPSTREAM_VERSION, not configured here.
       - name: Stage release notes
         run: |
           set -eu
           VER="${{ needs.build-cross.outputs.version }}"
-          CLANG_LINE="$(sh build/version.sh line)"
+          CLANG_LINE="$(sh build/clang-line.sh)"
           sh "$SHIPYARD_SCRIPTS/release-notes.sh" \
             --tag "$VER" --version "$VER" \
             --product Clang --line "$CLANG_LINE" --min-os 10.9.5 \
@@ -854,11 +874,13 @@ jobs:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
   publish:
-    needs: [collect, scan, on-mavericks, verify-linux]
+    needs: [version-check, collect, scan, on-mavericks, verify-linux]
     if: needs.collect.outputs.publish == 'yes'
     permissions:
       contents: write
     uses: Mavergreen/shipyard/.github/workflows/publish-release.yml@v1
     with:
       version: ${{ needs.collect.outputs.version }}
+      product: clang22
+      release-mode: ${{ needs.version-check.outputs.mode }}
       artifact: mavericks-clang

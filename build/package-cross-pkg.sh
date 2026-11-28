@@ -9,7 +9,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 export COPYFILE_DISABLE=1
 STAGE="$WORK/stage$CROSS_PREFIX"
 [ -x "$STAGE/bin/clang" ] || { echo "FATAL: run build-cross.sh first" >&2; exit 1; }
-VER="$(sh "$SHIPYARD_SCRIPTS/resolve-version.sh" "$(sh "$SHIPYARD_SCRIPTS/release-mode.sh")")"
+VER="$PKG_VERSION"   # versions.sh: VERSION, which release.yml writes from version-check's tag
 DIST="${DIST:-$HERE/../dist}"; mkdir -p "$DIST"
 PAYLOAD="$WORK/stage"     # DESTDIR root; contains .$CROSS_PREFIX
 NAME="mavericks-clang-${CLANG_LINE}-cross-$VER.pkg"

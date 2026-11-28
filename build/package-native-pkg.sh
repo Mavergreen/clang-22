@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 export COPYFILE_DISABLE=1
 STAGE="$WORK/stage-native$NATIVE_PREFIX"
 [ -x "$STAGE/bin/clang" ] || { echo "FATAL: run build-native.sh first" >&2; exit 1; }
-VER="$(sh "$SHIPYARD_SCRIPTS/resolve-version.sh" "$(sh "$SHIPYARD_SCRIPTS/release-mode.sh")")"
+VER="$PKG_VERSION"   # versions.sh: VERSION, which release.yml writes from version-check's tag
 DIST="${DIST:-$HERE/../dist}"; mkdir -p "$DIST"
 PAYLOAD="$WORK/stage-native"
 NAME="mavericks-clang-${CLANG_LINE}-native-$VER.pkg"
