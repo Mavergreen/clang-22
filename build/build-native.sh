@@ -133,6 +133,22 @@ for h in "c++"; do
 done
 [ -d "$STAGE/include/c++/v1" ] || { echo "FATAL: libc++ headers missing from $STAGE/include/c++/v1" >&2; exit 1; }
 
+# clang's resource headers for every target, not only X86's. clang/lib/Headers generates arm_neon.h,
+# arm_fp16.h, arm_sve.h and the rest only when an ARM target is built, and this build is X86-only, so
+# `clang --target=arm64-apple-macos11 -fsyntax-only` over a newer SDK failed in simd/base.h. Parsing
+# needs no AArch64 backend, and the headers are host-independent tblgen output of the same clang
+# source, so take the ones the cross build generated; never overwrite one this build made.
+NRES="$(find "$STAGE/lib/clang" -mindepth 2 -maxdepth 2 -type d -name include | head -1)"
+XRES="$CROSS_STAGE/lib/clang/${NRES#"$STAGE/lib/clang/"}"
+[ -d "$NRES" ] && [ -d "$XRES" ] || { echo "FATAL: no clang resource include dir at $NRES or $XRES" >&2; exit 1; }
+( cd "$XRES" && find . -type f ) | while IFS= read -r h; do
+  [ -e "$NRES/$h" ] && continue
+  install -d "$NRES/$(dirname "$h")" && cp -p "$XRES/$h" "$NRES/$h"
+done
+missing="$(cd "$XRES" && find . -type f | while IFS= read -r h; do [ -e "$NRES/$h" ] || echo "$h"; done)"
+[ -z "$missing" ] || { echo "FATAL: resource headers the cross build has and native lacks: $missing" >&2; exit 1; }
+[ -f "$NRES/arm_neon.h" ] || { echo "FATAL: no arm_neon.h in $NRES" >&2; exit 1; }
+
 cp -p "$CROSS_STAGE/lib/librecaulk.a" "$CROSS_STAGE/lib/librecaulk-libsystem.a" "$STAGE/lib/"
 install -d "$STAGE/share/recaulk"
 cp -p "$CROSS_STAGE/share/recaulk/libsystem-overrides.txt" "$STAGE/share/recaulk/"

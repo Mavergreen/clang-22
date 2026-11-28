@@ -1,0 +1,1 @@
+The x86_64 toolchain now ships clang's ARM resource headers, such as arm_neon.h, so it can parse arm64 code against newer SDKs.
